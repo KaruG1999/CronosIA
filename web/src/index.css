@@ -1,0 +1,165 @@
+/* Import Inter font - must be first */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styles */
+:root {
+  /* Base colors */
+  --bg-cronos-deep: #0A1128;
+  --bg-card-surface: #131B36;
+
+  /* Neon accents */
+  --neon-primary: linear-gradient(135deg, #00F0FF, #0057FF);
+  --neon-cyan: #00F0FF;
+  --neon-blue: #0057FF;
+
+  /* Text */
+  --text-primary: #FFFFFF;
+  --text-secondary: #A0AEC0;
+
+  /* Status */
+  --status-safe: #00FF94;
+  --status-warning: #FFD600;
+  --status-danger: #FF005C;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-cronos-deep);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Hex grid background pattern */
+.bg-hex-pattern {
+  background-image:
+    linear-gradient(to right, rgba(0, 240, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Neon glow effects */
+@layer components {
+  .neon-border {
+    @apply border border-neon-cyan/30;
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.1);
+  }
+
+  .neon-border-active {
+    @apply border border-neon-cyan;
+    box-shadow: 0 0 30px rgba(0, 240, 255, 0.3);
+  }
+
+  .neon-button {
+    @apply px-6 py-3 rounded-lg font-semibold text-white transition-all duration-300;
+    background: linear-gradient(135deg, #00F0FF, #0057FF);
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
+  }
+
+  .neon-button:hover {
+    box-shadow: 0 0 30px rgba(0, 240, 255, 0.5);
+    transform: translateY(-1px);
+  }
+
+  .neon-button:active {
+    transform: translateY(0);
+  }
+
+  .neon-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .card {
+    @apply bg-card-surface rounded-xl p-6;
+    border: 1px solid rgba(0, 240, 255, 0.1);
+  }
+
+  .card-hover {
+    @apply card transition-all duration-300 cursor-pointer;
+  }
+
+  .card-hover:hover {
+    border-color: rgba(0, 240, 255, 0.3);
+    box-shadow: 0 0 30px rgba(0, 240, 255, 0.15);
+  }
+
+  /* Status badges */
+  .badge-safe {
+    @apply px-3 py-1 rounded-full text-sm font-medium;
+    background: rgba(0, 255, 148, 0.15);
+    color: var(--status-safe);
+    box-shadow: 0 0 15px rgba(0, 255, 148, 0.2);
+  }
+
+  .badge-warning {
+    @apply px-3 py-1 rounded-full text-sm font-medium;
+    background: rgba(255, 214, 0, 0.15);
+    color: var(--status-warning);
+    box-shadow: 0 0 15px rgba(255, 214, 0, 0.2);
+  }
+
+  .badge-danger {
+    @apply px-3 py-1 rounded-full text-sm font-medium;
+    background: rgba(255, 0, 92, 0.15);
+    color: var(--status-danger);
+    box-shadow: 0 0 15px rgba(255, 0, 92, 0.2);
+  }
+
+  /* Input with neon glow */
+  .neon-input {
+    @apply w-full bg-card-surface border border-neon-cyan/20 rounded-lg px-4 py-3 text-white placeholder-text-secondary/50 transition-all duration-300;
+  }
+
+  .neon-input:focus {
+    @apply outline-none border-neon-cyan;
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.2);
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-cronos-deep);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 240, 255, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 240, 255, 0.5);
+}
+
+/* Animations */
+@keyframes pulse-glow {
+  0%, 100% {
+    filter: brightness(1) drop-shadow(0 0 10px rgba(0, 240, 255, 0.5));
+  }
+  50% {
+    filter: brightness(1.2) drop-shadow(0 0 25px rgba(0, 240, 255, 0.8));
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
