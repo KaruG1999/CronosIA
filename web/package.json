@@ -10,7 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@crypto.com/facilitator-client": "^1.0.4",
     "@tanstack/react-query": "^5.90.16",
+    "ethers": "^6.16.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "viem": "^2.44.2",

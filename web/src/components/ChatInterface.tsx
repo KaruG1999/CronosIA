@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { CapabilityCard, CAPABILITIES } from './CapabilityCard';
 import { ResultDisplay } from './ResultDisplay';
 import { LoadingAgent } from './LoadingAgent';
@@ -6,20 +6,31 @@ import { EmptyStateGuide } from './EmptyStateGuide';
 import { PaymentModal } from './PaymentModal';
 import {
   executeCapability,
+  executeCapabilityWithPayment,
   parseSwapInput,
   extractAddress,
   isValidAddress,
+  PaymentRequiredError,
   type CapabilityInput,
 } from '../api/capabilities';
+import {
+  createX402PaymentHeader,
+  type X402Challenge,
+  type X402PaymentState,
+} from '../hooks/useX402Payment';
+import { useWallet } from '../lib/wallet';
 import type { CapabilitySlug, CapabilityResult, CapabilityInfo } from '../types';
 import type { NetworkInfo } from './Header';
+
+// =========================================
+// Types
+// =========================================
 
 // State machine states
 type FlowState =
   | 'idle'
   | 'editing'
   | 'confirm_payment'
-  | 'paying'
   | 'running'
   | 'result'
   | 'error';
@@ -42,7 +53,12 @@ interface ChatInterfaceProps {
   network: NetworkInfo | null;
 }
 
+// =========================================
+// Component
+// =========================================
+
 export function ChatInterface({ network }: ChatInterfaceProps) {
+  // UI State
   const [selectedCapability, setSelectedCapability] = useState<CapabilityInfo | null>(null);
   const [inputValue, setInputValue] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -51,14 +67,26 @@ export function ChatInterface({ network }: ChatInterfaceProps) {
     isValid: false,
     error: null,
   });
-  const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [is402Error, setIs402Error] = useState(false);
-  const [pendingInput, setPendingInput] = useState<CapabilityInput | null>(null);
   const [highlightCapabilities, setHighlightCapabilities] = useState(false);
 
+  // x402 Payment State
+  const [x402Challenge, setX402Challenge] = useState<X402Challenge | null>(null);
+  const [paymentState, setPaymentState] = useState<X402PaymentState>('idle');
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [paymentTxHash, setPaymentTxHash] = useState<string | null>(null);
+  const [pendingInput, setPendingInput] = useState<CapabilityInput | null>(null);
+
+  // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const capabilitySectionRef = useRef<HTMLDivElement>(null);
+
+  // Wallet hook
+  const { walletClient, isConnected, isCorrectNetwork, switchToDefaultNetwork } = useWallet();
+
+  // =========================================
+  // Effects
+  // =========================================
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -102,34 +130,48 @@ export function ChatInterface({ network }: ChatInterfaceProps) {
     }
   }, [inputValue, selectedCapability]);
 
-  const addMessage = (message: Omit<Message, 'id'>) => {
-    const id = Date.now().toString();
+  // =========================================
+  // Message Helpers
+  // =========================================
+
+  const addMessage = useCallback((message: Omit<Message, 'id'>) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     setMessages((prev) => [...prev, { ...message, id }]);
     return id;
-  };
+  }, []);
 
-  const removeMessage = (id: string) => {
-    setMessages((prev) => prev.filter((m) => m.id !== id));
-  };
+  // =========================================
+  // Handlers
+  // =========================================
 
-  const handleCapabilitySelect = (cap: CapabilityInfo) => {
+  const handleCapabilitySelect = useCallback((cap: CapabilityInfo) => {
     setSelectedCapability(cap);
     setFlowState('editing');
     setValidationState({ isValid: false, error: null });
     setInputValue('');
+    // Reset payment state
+    setX402Challenge(null);
+    setPaymentState('idle');
+    setPaymentError(null);
+    setPaymentTxHash(null);
     setTimeout(() => inputRef.current?.focus(), 100);
-  };
+  }, []);
 
-  const handleScrollToCapabilities = () => {
-    // Scroll to capabilities section
+  const handleScrollToCapabilities = useCallback(() => {
     capabilitySectionRef.current?.scrollIntoView({ behavior: 'smooth' });
-
-    // Trigger highlight animation on capability cards
     setHighlightCapabilities(true);
     setTimeout(() => setHighlightCapabilities(false), 1500);
-  };
+  }, []);
 
-  const handlePaymentRequest = () => {
+  const resetPaymentState = useCallback(() => {
+    setX402Challenge(null);
+    setPaymentState('idle');
+    setPaymentError(null);
+    setPaymentTxHash(null);
+  }, []);
+
+  // Initial request - triggers 402
+  const handleExecuteRequest = useCallback(async () => {
     if (!selectedCapability || !validationState.isValid) return;
 
     const userInput = inputValue.trim();
@@ -145,36 +187,42 @@ export function ChatInterface({ network }: ChatInterfaceProps) {
       input = { address };
     }
 
+    console.log('[ChatInterface] Starting execution flow');
     setPendingInput(input);
-    setPaymentError(null);
-    setIs402Error(false);
-    setFlowState('confirm_payment');
-  };
+    resetPaymentState();
 
-  const handleConfirmPayment = async () => {
-    if (!selectedCapability || !pendingInput) return;
+    // Check wallet connection
+    if (!isConnected) {
+      setPaymentError('Please connect your wallet first.');
+      setFlowState('confirm_payment');
+      setPaymentState('error');
+      return;
+    }
 
-    setFlowState('paying');
-    setPaymentError(null);
+    // Check network
+    if (!isCorrectNetwork) {
+      console.log('[ChatInterface] Wrong network, prompting switch');
+      setPaymentError('Please switch to Cronos Testnet.');
+      setFlowState('confirm_payment');
+      setPaymentState('error');
+      await switchToDefaultNetwork();
+      return;
+    }
 
-    // Brief processing delay
-    await new Promise((resolve) => setTimeout(resolve, 600));
-
-    setFlowState('running');
-
-    // Add user message
-    const userContent =
-      'params' in pendingInput
-        ? `${pendingInput.params.amount} ${pendingInput.params.token_in} to ${pendingInput.params.token_out}`
-        : pendingInput.address;
-
-    addMessage({ type: 'user', content: userContent });
-    const loadingId = addMessage({ type: 'loading' });
-
+    // Make initial request (will get 402)
     try {
-      const response = await executeCapability(selectedCapability.slug, pendingInput);
+      console.log('[ChatInterface] Making initial request...');
+      const response = await executeCapability(selectedCapability.slug, input);
 
-      removeMessage(loadingId);
+      // If we get here without 402, the capability executed (mock mode?)
+      console.log('[ChatInterface] Request succeeded without payment (mock mode?)');
+
+      const userContent =
+        'params' in input
+          ? `${input.params.amount} ${input.params.token_in} to ${input.params.token_out}`
+          : input.address;
+
+      addMessage({ type: 'user', content: userContent });
       addMessage({
         type: 'result',
         capability: selectedCapability.slug,
@@ -190,43 +238,169 @@ export function ChatInterface({ network }: ChatInterfaceProps) {
       setInputValue('');
       setPendingInput(null);
     } catch (error) {
-      removeMessage(loadingId);
+      if (error instanceof PaymentRequiredError) {
+        // Expected! Store the challenge and show payment modal
+        console.log('[ChatInterface] Received 402 - payment required');
+        console.log('[ChatInterface] Challenge:', error.challenge);
+        setX402Challenge(error.challenge);
+        setPaymentState('awaiting_approval');
+        setFlowState('confirm_payment');
+      } else {
+        // Unexpected error
+        console.error('[ChatInterface] Unexpected error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'An error occurred';
+        setPaymentError(errorMessage);
+        setFlowState('confirm_payment');
+        setPaymentState('error');
+      }
+    }
+  }, [
+    selectedCapability,
+    validationState.isValid,
+    inputValue,
+    isConnected,
+    isCorrectNetwork,
+    switchToDefaultNetwork,
+    addMessage,
+    resetPaymentState,
+  ]);
 
-      let errorMessage = 'An error occurred. Please try again.';
+  // Handle payment confirmation (user clicked "Confirm & Pay")
+  const handleConfirmPayment = useCallback(async () => {
+    if (!selectedCapability || !pendingInput || !x402Challenge || !walletClient) {
+      console.error('[ChatInterface] Missing required data for payment');
+      setPaymentError('Missing required data. Please try again.');
+      setPaymentState('error');
+      return;
+    }
+
+    console.log('[ChatInterface] User confirmed payment, starting x402 flow...');
+
+    try {
+      // Step 1: Open wallet
+      setPaymentState('opening_wallet');
+      console.log('[ChatInterface] Opening wallet...');
+
+      // Small delay for UX
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Step 2: Sign payment
+      setPaymentState('signing');
+      console.log('[ChatInterface] Requesting signature...');
+
+      const paymentHeader = await createX402PaymentHeader(x402Challenge, walletClient);
+      console.log('[ChatInterface] Payment header created');
+
+      // Step 3: Confirm on chain
+      setPaymentState('confirming');
+      console.log('[ChatInterface] Confirming...');
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Step 4: Retry with payment
+      setPaymentState('retrying_request');
+      console.log('[ChatInterface] Retrying request with payment proof...');
+
+      const response = await executeCapabilityWithPayment(
+        selectedCapability.slug,
+        pendingInput,
+        paymentHeader
+      );
+
+      // Step 5: Success!
+      setPaymentState('settled');
+      console.log('[ChatInterface] Payment settled, showing results');
+
+      // Add messages
+      const userContent =
+        'params' in pendingInput
+          ? `${pendingInput.params.amount} ${pendingInput.params.token_in} to ${pendingInput.params.token_out}`
+          : pendingInput.address;
+
+      addMessage({ type: 'user', content: userContent });
+      addMessage({
+        type: 'result',
+        capability: selectedCapability.slug,
+        result: {
+          data: response.result,
+          warnings: response.warnings,
+          limitations: response.limitations,
+        },
+        paidAmount: selectedCapability.price,
+      });
+
+      // Brief delay to show success state, then close modal
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      setFlowState('result');
+      setInputValue('');
+      setPendingInput(null);
+      resetPaymentState();
+    } catch (error) {
+      console.error('[ChatInterface] Payment failed:', error);
+
+      let errorMessage = 'Payment failed. Please try again.';
 
       if (error instanceof Error) {
-        if (error.name === 'PaymentRequiredError') {
-          setIs402Error(true);
-          setPaymentError(null); // No error message needed, modal explains 402
-          setFlowState('confirm_payment');
-          return;
+        // User rejected
+        if (error.message.includes('rejected') || error.message.includes('denied') || error.message.includes('User rejected')) {
+          errorMessage = 'Transaction cancelled. You rejected the payment in your wallet.';
         }
-        errorMessage = error.message;
+        // Insufficient funds
+        else if (error.message.includes('insufficient') || error.message.includes('balance')) {
+          errorMessage = 'Insufficient funds. Please ensure you have enough devUSDC.e.';
+        }
+        // Wrong network
+        else if (error.message.includes('network') || error.message.includes('chain')) {
+          errorMessage = error.message;
+        }
+        // Generic
+        else {
+          errorMessage = error.message;
+        }
       }
 
-      addMessage({ type: 'error', content: errorMessage });
-      setFlowState('error');
-      setPendingInput(null);
+      setPaymentError(errorMessage);
+      setPaymentState('error');
     }
-  };
+  }, [
+    selectedCapability,
+    pendingInput,
+    x402Challenge,
+    walletClient,
+    addMessage,
+    resetPaymentState,
+  ]);
 
-  const handleCancelPayment = () => {
+  const handleCancelPayment = useCallback(() => {
+    console.log('[ChatInterface] User cancelled payment');
     setFlowState('editing');
     setPendingInput(null);
-    setPaymentError(null);
-    setIs402Error(false);
-  };
+    resetPaymentState();
+  }, [resetPaymentState]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      if (validationState.isValid) {
-        handlePaymentRequest();
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (validationState.isValid) {
+          handleExecuteRequest();
+        }
       }
-    }
-  };
+    },
+    [validationState.isValid, handleExecuteRequest]
+  );
 
-  const isLoading = flowState === 'paying' || flowState === 'running';
+  // =========================================
+  // Computed Values
+  // =========================================
+
+  const isLoading = flowState === 'running';
+  const isModalOpen = flowState === 'confirm_payment';
+
+  // =========================================
+  // Render
+  // =========================================
 
   return (
     <div className="flex flex-col h-full">
@@ -237,9 +411,7 @@ export function ChatInterface({ network }: ChatInterfaceProps) {
             Select Operation
           </p>
           {selectedCapability && (
-            <span className="text-xs text-accent">
-              {selectedCapability.name}
-            </span>
+            <span className="text-xs text-accent">{selectedCapability.name}</span>
           )}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -249,7 +421,7 @@ export function ChatInterface({ network }: ChatInterfaceProps) {
               capability={cap}
               selected={selectedCapability?.slug === cap.slug}
               onClick={() => handleCapabilitySelect(cap)}
-              disabled={isLoading}
+              disabled={isLoading || isModalOpen}
               highlight={highlightCapabilities}
             />
           ))}
@@ -294,9 +466,7 @@ export function ChatInterface({ network }: ChatInterfaceProps) {
             {message.type === 'error' && (
               <div className="card border-status-danger/20">
                 <p className="font-medium text-status-danger text-sm">Error</p>
-                <p className="text-xs text-status-danger/80 mt-1">
-                  {message.content}
-                </p>
+                <p className="text-xs text-status-danger/80 mt-1">{message.content}</p>
               </div>
             )}
           </div>
@@ -310,9 +480,7 @@ export function ChatInterface({ network }: ChatInterfaceProps) {
         {/* Selected capability indicator */}
         {selectedCapability && (
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm text-text-primary">
-              {selectedCapability.name}
-            </span>
+            <span className="text-sm text-text-primary">{selectedCapability.name}</span>
             <span className="text-sm font-semibold text-accent">
               {selectedCapability.price}
             </span>
@@ -328,10 +496,8 @@ export function ChatInterface({ network }: ChatInterfaceProps) {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={
-                selectedCapability?.placeholder || 'Select an operation above'
-              }
-              disabled={!selectedCapability || isLoading}
+              placeholder={selectedCapability?.placeholder || 'Select an operation above'}
+              disabled={!selectedCapability || isLoading || isModalOpen}
               className={`input w-full pr-10 ${
                 validationState.error ? 'border-status-danger focus:border-status-danger' : ''
               }`}
@@ -349,8 +515,8 @@ export function ChatInterface({ network }: ChatInterfaceProps) {
             )}
           </div>
           <button
-            onClick={handlePaymentRequest}
-            disabled={!selectedCapability || !validationState.isValid || isLoading}
+            onClick={handleExecuteRequest}
+            disabled={!selectedCapability || !validationState.isValid || isLoading || isModalOpen}
             className="btn-primary whitespace-nowrap min-w-[120px] flex items-center justify-center gap-2"
           >
             {isLoading ? (
@@ -373,7 +539,7 @@ export function ChatInterface({ network }: ChatInterfaceProps) {
 
         {/* Disclaimer */}
         <p className="text-xs text-text-tertiary mt-3 text-center">
-          Payment via x402 protocol. {network?.paymentToken.symbol ?? 'USDCe'} on Cronos.
+          Payment via x402 protocol. {network?.paymentToken.symbol ?? 'devUSDC.e'} on Cronos.
         </p>
       </div>
 
@@ -382,11 +548,11 @@ export function ChatInterface({ network }: ChatInterfaceProps) {
         <PaymentModal
           capability={selectedCapability}
           network={network}
-          isOpen={flowState === 'confirm_payment' || flowState === 'paying'}
-          isProcessing={flowState === 'paying'}
+          isOpen={isModalOpen}
+          paymentState={paymentState}
           error={paymentError}
-          is402Error={is402Error}
-          onConfirm={handleConfirmPayment}
+          txHash={paymentTxHash}
+          onConfirmPayment={handleConfirmPayment}
           onCancel={handleCancelPayment}
         />
       )}

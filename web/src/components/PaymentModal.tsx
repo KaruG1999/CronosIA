@@ -1,17 +1,26 @@
 import { useEffect, useRef } from 'react';
 import type { CapabilityInfo } from '../types';
 import type { NetworkInfo } from './Header';
+import type { X402PaymentState } from '../hooks/useX402Payment';
+
+// =========================================
+// Types
+// =========================================
 
 interface PaymentModalProps {
   capability: CapabilityInfo;
   network: NetworkInfo | null;
   isOpen: boolean;
-  isProcessing: boolean;
+  paymentState: X402PaymentState;
   error?: string | null;
-  is402Error?: boolean;
-  onConfirm: () => void;
+  txHash?: string | null;
+  onConfirmPayment: () => void;
   onCancel: () => void;
 }
+
+// =========================================
+// Constants
+// =========================================
 
 // Capability action descriptions - factual tone
 const CAPABILITY_ACTIONS: Record<string, string> = {
@@ -23,18 +32,53 @@ const CAPABILITY_ACTIONS: Record<string, string> = {
     'Simulates swap transaction to display expected output, price impact percentage, and routing path.',
 };
 
+// Payment state to button text
+const BUTTON_TEXT: Record<X402PaymentState, string> = {
+  idle: 'Confirm & Pay',
+  awaiting_approval: 'Confirm & Pay',
+  opening_wallet: 'Opening Wallet...',
+  signing: 'Sign in Wallet...',
+  confirming: 'Confirming...',
+  retrying_request: 'Finalizing...',
+  settled: 'Complete!',
+  error: 'Try Again',
+};
+
+// States where button should be disabled
+const PROCESSING_STATES: X402PaymentState[] = [
+  'opening_wallet',
+  'signing',
+  'confirming',
+  'retrying_request',
+];
+
+// States where we show the spinner
+const SPINNER_STATES: X402PaymentState[] = [
+  'opening_wallet',
+  'signing',
+  'confirming',
+  'retrying_request',
+];
+
+// =========================================
+// Component
+// =========================================
+
 export function PaymentModal({
   capability,
   network,
   isOpen,
-  isProcessing,
+  paymentState,
   error,
-  is402Error,
-  onConfirm,
+  txHash,
+  onConfirmPayment,
   onCancel,
 }: PaymentModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
+
+  const isProcessing = PROCESSING_STATES.includes(paymentState);
+  const showSpinner = SPINNER_STATES.includes(paymentState);
 
   // Focus trap and escape key
   useEffect(() => {
@@ -61,6 +105,27 @@ export function PaymentModal({
   if (!isOpen) return null;
 
   const actionDescription = CAPABILITY_ACTIONS[capability.slug] || '';
+  const tokenSymbol = network?.paymentToken.symbol ?? 'devUSDC.e';
+
+  // Get status message based on payment state
+  const getStatusMessage = (): string | null => {
+    switch (paymentState) {
+      case 'opening_wallet':
+        return 'Opening your wallet...';
+      case 'signing':
+        return 'Please confirm the transaction in your wallet';
+      case 'confirming':
+        return 'Waiting for blockchain confirmation...';
+      case 'retrying_request':
+        return 'Processing your request...';
+      case 'settled':
+        return 'Payment successful!';
+      default:
+        return null;
+    }
+  };
+
+  const statusMessage = getStatusMessage();
 
   return (
     <div
@@ -86,7 +151,7 @@ export function PaymentModal({
             id="payment-modal-title"
             className="text-base font-semibold text-text-primary"
           >
-            {is402Error ? 'Payment Required' : 'Confirm Payment'}
+            Confirm Payment
           </h2>
           <p className="text-sm text-text-secondary mt-0.5">
             {capability.name}
@@ -95,17 +160,16 @@ export function PaymentModal({
 
         {/* Content */}
         <div className="p-5 space-y-4">
-          {/* 402 Error explanation */}
-          {is402Error && (
-            <div className="bg-status-warning/5 border border-status-warning/20 rounded-lg p-3">
-              <p className="text-sm text-status-warning">
-                x402: This operation requires payment to execute.
-              </p>
-              <p className="text-xs text-text-secondary mt-1">
-                Ensure you have {network?.paymentToken.symbol ?? 'USDCe'} in your connected wallet.
-              </p>
-            </div>
-          )}
+          {/* Payment explanation - always show */}
+          <div className="bg-accent/5 border border-accent/20 rounded-lg p-3">
+            <p className="text-sm text-accent font-medium">
+              Payment Required
+            </p>
+            <p className="text-xs text-text-secondary mt-1">
+              This operation uses the x402 protocol. You will be asked to confirm
+              the payment in your wallet.
+            </p>
+          </div>
 
           {/* Price display */}
           <div className="bg-surface-hover rounded-lg p-4 text-center">
@@ -116,7 +180,7 @@ export function PaymentModal({
               {capability.price}
             </p>
             <p className="text-xs text-text-secondary mt-1">
-              {network?.paymentToken.symbol ?? 'USDCe'}
+              {tokenSymbol}
             </p>
           </div>
 
@@ -130,6 +194,46 @@ export function PaymentModal({
             </p>
           </div>
 
+          {/* Status message during processing */}
+          {statusMessage && (
+            <div className="bg-surface-hover rounded-lg p-3 flex items-center gap-3">
+              {showSpinner && (
+                <span className="w-4 h-4 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
+              )}
+              {paymentState === 'settled' && (
+                <span className="text-status-safe text-lg">&#10003;</span>
+              )}
+              <p className="text-sm text-text-primary">{statusMessage}</p>
+            </div>
+          )}
+
+          {/* Transaction hash after success */}
+          {txHash && (
+            <div className="bg-status-safe/5 border border-status-safe/20 rounded-lg p-3">
+              <p className="text-xs text-status-safe font-medium mb-1">
+                Transaction Confirmed
+              </p>
+              <a
+                href={`${network?.explorerUrl}/tx/${txHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-accent hover:underline break-all"
+              >
+                View on Explorer
+              </a>
+            </div>
+          )}
+
+          {/* Error display */}
+          {error && (
+            <div className="bg-status-danger/5 border border-status-danger/20 rounded-lg p-3">
+              <p className="text-sm text-status-danger font-medium">
+                Payment Failed
+              </p>
+              <p className="text-xs text-status-danger/80 mt-1">{error}</p>
+            </div>
+          )}
+
           {/* Disclaimer */}
           <div className="bg-surface-hover rounded-lg p-3">
             <p className="text-xs text-text-tertiary leading-relaxed">
@@ -137,13 +241,6 @@ export function PaymentModal({
               with official sources before making financial decisions.
             </p>
           </div>
-
-          {/* Error display */}
-          {error && (
-            <div className="bg-status-danger/5 border border-status-danger/20 rounded-lg p-3">
-              <p className="text-sm text-status-danger">{error}</p>
-            </div>
-          )}
         </div>
 
         {/* Actions */}
@@ -157,18 +254,14 @@ export function PaymentModal({
           </button>
           <button
             ref={confirmButtonRef}
-            onClick={onConfirm}
+            onClick={onConfirmPayment}
             disabled={isProcessing}
             className="flex-1 btn-primary flex items-center justify-center gap-2"
           >
-            {isProcessing ? (
-              <>
-                <span className="animate-spin">&#9696;</span>
-                <span>Processing...</span>
-              </>
-            ) : (
-              <span>{is402Error ? 'Retry' : 'Confirm'}</span>
+            {showSpinner && (
+              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             )}
+            <span>{BUTTON_TEXT[paymentState]}</span>
           </button>
         </div>
 
@@ -176,7 +269,7 @@ export function PaymentModal({
         <div className="px-5 pb-4 text-center">
           {network?.isTestnet ? (
             <p className="text-xs text-status-safe">
-              Testnet: {network.paymentToken.symbol}
+              Testnet: {tokenSymbol}
             </p>
           ) : network?.isMainnet ? (
             <p className="text-xs text-status-danger">
@@ -186,6 +279,20 @@ export function PaymentModal({
             <p className="text-xs text-text-tertiary">x402 Protocol</p>
           )}
         </div>
+
+        {/* Helpful links */}
+        {network?.isTestnet && paymentState === 'error' && error?.includes('Insufficient') && (
+          <div className="px-5 pb-4 text-center">
+            <a
+              href="https://cronos.org/faucet"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-accent hover:underline"
+            >
+              Get testnet tokens from faucet
+            </a>
+          </div>
+        )}
       </div>
     </div>
   );
