@@ -37,6 +37,8 @@ const envSchema = z.object({
   PORT: z.string().optional().default('3000').transform(Number),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   FRONTEND_URL: z.string().url().optional().default('http://localhost:5173'),
+  // Comma-separated list of allowed origins for CORS (supports multiple Vercel URLs)
+  ALLOWED_ORIGINS: z.string().optional().default(''),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
 
   // Development flags (MOCK mode for local dev only)
@@ -161,6 +163,10 @@ export const config = {
   port: env.PORT,
   nodeEnv: env.NODE_ENV,
   frontendUrl: env.FRONTEND_URL,
+  // Parse ALLOWED_ORIGINS as array, filter empty strings
+  allowedOrigins: env.ALLOWED_ORIGINS
+    ? env.ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+    : [],
   logLevel: env.LOG_LEVEL,
 
   // Development flags

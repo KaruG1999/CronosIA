@@ -38,10 +38,34 @@ app.use(helmet({
 // CORS Configuration
 // =========================================
 
+// Build list of allowed origins from config
+const getAllowedOrigins = (): string[] => {
+  const origins: string[] = [];
+
+  // Add FRONTEND_URL if set
+  if (config.frontendUrl) {
+    origins.push(config.frontendUrl);
+  }
+
+  // Add all origins from ALLOWED_ORIGINS env var
+  if (config.allowedOrigins.length > 0) {
+    origins.push(...config.allowedOrigins);
+  }
+
+  return origins;
+};
+
+// Check if origin matches Vercel preview deployment pattern
+const isVercelPreview = (origin: string): boolean => {
+  // Matches: https://<project>-<hash>-<username>.vercel.app
+  // or: https://<project>.vercel.app
+  return /^https:\/\/[\w-]+(-[\w]+)*\.vercel\.app$/.test(origin);
+};
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, curl, etc.)
+      // Allow requests with no origin (mobile apps, curl, Postman, etc.)
       if (!origin) return callback(null, true);
 
       // In development, allow any localhost port
@@ -49,19 +73,41 @@ app.use(
         return callback(null, true);
       }
 
-      // In production, only allow configured frontend
-      if (origin === config.frontendUrl) {
+      // Check against explicitly allowed origins
+      const allowedOrigins = getAllowedOrigins();
+      if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
 
+      // In production, also allow Vercel preview deployments
+      // This enables testing on preview URLs without manual config
+      if (config.isProduction && isVercelPreview(origin)) {
+        console.log(`[CORS] Allowing Vercel preview: ${origin}`);
+        return callback(null, true);
+      }
+
+      console.warn(`[CORS] Blocked origin: ${origin}`);
       callback(new Error('CORS not allowed'));
     },
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Payment'],
-    exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Payment',
+      'X-402-Token',
+      'X-Requested-With',
+    ],
+    exposedHeaders: [
+      'X-RateLimit-Limit',
+      'X-RateLimit-Remaining',
+      'X-RateLimit-Reset',
+    ],
     credentials: true,
   })
 );
+
+// Explicitly handle preflight OPTIONS requests
+app.options('*', cors());
 
 // =========================================
 // Body Parsing
