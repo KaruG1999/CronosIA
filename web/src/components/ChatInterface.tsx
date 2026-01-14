@@ -82,7 +82,14 @@ export function ChatInterface({ network }: ChatInterfaceProps) {
   const capabilitySectionRef = useRef<HTMLDivElement>(null);
 
   // Wallet hook
-  const { walletClient, isConnected, isCorrectNetwork, switchToDefaultNetwork } = useWallet();
+  const {
+    walletClient,
+    isConnected,
+    isCorrectNetwork,
+    isWalletReady,
+    isWalletClientLoading,
+    switchToDefaultNetwork,
+  } = useWallet();
 
   // =========================================
   // Effects
@@ -241,7 +248,18 @@ export function ChatInterface({ network }: ChatInterfaceProps) {
       if (error instanceof PaymentRequiredError) {
         // Expected! Store the challenge and show payment modal
         console.log('[ChatInterface] Received 402 - payment required');
-        console.log('[ChatInterface] Challenge:', error.challenge);
+        console.log('[ChatInterface] Challenge object:', JSON.stringify(error.challenge, null, 2));
+        console.log('[ChatInterface] Challenge.accepts:', error.challenge?.accepts);
+        console.log('[ChatInterface] walletClient available:', !!walletClient);
+
+        if (!error.challenge || !error.challenge.accepts) {
+          console.error('[ChatInterface] Invalid challenge format received');
+          setPaymentError('Invalid payment challenge received from server.');
+          setPaymentState('error');
+          setFlowState('confirm_payment');
+          return;
+        }
+
         setX402Challenge(error.challenge);
         setPaymentState('awaiting_approval');
         setFlowState('confirm_payment');
@@ -261,16 +279,73 @@ export function ChatInterface({ network }: ChatInterfaceProps) {
     isConnected,
     isCorrectNetwork,
     switchToDefaultNetwork,
+    walletClient,
     addMessage,
     resetPaymentState,
   ]);
 
   // Handle payment confirmation (user clicked "Confirm & Pay")
   const handleConfirmPayment = useCallback(async () => {
-    if (!selectedCapability || !pendingInput || !x402Challenge || !walletClient) {
-      console.error('[ChatInterface] Missing required data for payment');
-      setPaymentError('Missing required data. Please try again.');
+    // Detailed validation with specific error messages
+    console.log('[ChatInterface] handleConfirmPayment called');
+    console.log('[ChatInterface] State check:', {
+      selectedCapability: !!selectedCapability,
+      pendingInput: !!pendingInput,
+      x402Challenge: !!x402Challenge,
+      walletClient: !!walletClient,
+      isConnected,
+      isCorrectNetwork,
+      isWalletReady,
+      isWalletClientLoading,
+    });
+
+    if (!selectedCapability) {
+      console.error('[ChatInterface] No capability selected');
+      setPaymentError('No operation selected. Please select an operation first.');
       setPaymentState('error');
+      return;
+    }
+
+    if (!pendingInput) {
+      console.error('[ChatInterface] No pending input');
+      setPaymentError('No input data. Please enter your request first.');
+      setPaymentState('error');
+      return;
+    }
+
+    if (!x402Challenge) {
+      console.error('[ChatInterface] No x402 challenge received');
+      setPaymentError('Payment challenge not received. Please try again.');
+      setPaymentState('error');
+      return;
+    }
+
+    if (!isConnected) {
+      console.error('[ChatInterface] Wallet not connected');
+      setPaymentError('Wallet not connected. Please connect your wallet first.');
+      setPaymentState('error');
+      return;
+    }
+
+    if (isWalletClientLoading) {
+      console.log('[ChatInterface] WalletClient is still loading...');
+      setPaymentError('Wallet is still initializing. Please wait a moment...');
+      setPaymentState('error');
+      return;
+    }
+
+    if (!walletClient) {
+      console.error('[ChatInterface] WalletClient not available');
+      setPaymentError('Could not access wallet. Please reconnect your wallet and try again.');
+      setPaymentState('error');
+      return;
+    }
+
+    if (!isCorrectNetwork) {
+      console.error('[ChatInterface] Wrong network');
+      setPaymentError('Wrong network. Please switch to Cronos Testnet.');
+      setPaymentState('error');
+      await switchToDefaultNetwork();
       return;
     }
 
@@ -368,6 +443,11 @@ export function ChatInterface({ network }: ChatInterfaceProps) {
     pendingInput,
     x402Challenge,
     walletClient,
+    isConnected,
+    isCorrectNetwork,
+    isWalletReady,
+    isWalletClientLoading,
+    switchToDefaultNetwork,
     addMessage,
     resetPaymentState,
   ]);

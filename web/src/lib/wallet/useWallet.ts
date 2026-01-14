@@ -9,7 +9,7 @@ export function useWallet() {
   const { disconnect } = useDisconnect();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
-  const { data: walletClient } = useWalletClient();
+  const { data: walletClient, isLoading: isWalletClientLoading } = useWalletClient();
 
   // Check if on correct network
   const isCorrectNetwork = chainId === defaultChain.id;
@@ -100,6 +100,9 @@ export function useWallet() {
 
     // For x402 integration
     walletClient,
+    isWalletClientLoading,
+    // Convenience: wallet is fully ready for signing
+    isWalletReady: isConnected && !isWalletClientLoading && !!walletClient,
   };
 }
 
