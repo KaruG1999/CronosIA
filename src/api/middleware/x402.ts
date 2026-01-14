@@ -1,165 +1,348 @@
 // =========================================
 // CronosAI Ops - x402 Payment Middleware
+// Uses @crypto.com/facilitator-client for Cronos x402
 // =========================================
 
 import type { Request, Response, NextFunction } from 'express';
+import {
+  Facilitator,
+  CronosNetwork,
+  Scheme,
+  Contract,
+  type PaymentRequirements,
+  type VerifyRequest,
+} from '@crypto.com/facilitator-client';
 import { config } from '../../shared/config.js';
 import { CAPABILITIES_META, type CapabilitySlug } from '../../core/capabilities/index.js';
 
-/**
- * Cronos network identifier for x402
- * Cronos Mainnet: eip155:25
- * Cronos Testnet: eip155:338
- */
-const CRONOS_NETWORK = `eip155:${config.chainId}` as const;
+// =========================================
+// Types
+// =========================================
 
-/**
- * USDC token address on Cronos
- */
-const CRONOS_USDC = '0xc21223249CA28397B4B6541dfFaEcC539BfF0c59';
-
-/**
- * Generate route configs for all capabilities
- * Uses x402 RoutesConfig format
- */
-function generateRouteConfigs() {
-  // Build routes config compatible with x402
-  const routes: Record<string, unknown> = {};
-
-  for (const [slug, meta] of Object.entries(CAPABILITIES_META)) {
-    const routeKey = `POST /capability/${slug}`;
-    routes[routeKey] = {
-      accepts: {
-        scheme: 'exact',
-        price: meta.price,
-        network: CRONOS_NETWORK,
-        payTo: config.recipientAddress,
-        asset: CRONOS_USDC,
-      },
-      description: meta.description,
-    };
-  }
-
-  return routes;
-}
-
-/**
- * Payment info logged for each transaction
- */
 interface PaymentLog {
   timestamp: string;
   capability: string;
   price: string;
+  network: string;
   payerAddress?: string;
   transactionHash?: string;
-  status: 'pending' | 'verified' | 'failed';
+  status: 'pending' | 'verified' | 'settled' | 'failed';
 }
+
+interface X402PaymentInfo {
+  x402Version: number;
+  accepts: PaymentRequirements;
+  error?: string;
+}
+
+// =========================================
+// Facilitator Client
+// =========================================
+
+// Get the correct CronosNetwork enum based on config
+const cronosNetwork = config.isMainnet
+  ? CronosNetwork.CronosMainnet
+  : CronosNetwork.CronosTestnet;
+
+// Get the correct token contract based on network
+const paymentAsset = config.isMainnet
+  ? Contract.USDCe
+  : Contract.DevUSDCe;
+
+// Initialize facilitator client (lazy, created on first use)
+let facilitator: Facilitator | null = null;
+
+function getFacilitator(): Facilitator {
+  if (!facilitator) {
+    facilitator = new Facilitator({
+      network: cronosNetwork,
+    });
+    console.log(`[x402] Facilitator initialized for ${config.networkId}`);
+  }
+  return facilitator;
+}
+
+// =========================================
+// Payment Logging
+// =========================================
 
 const paymentLogs: PaymentLog[] = [];
 
-/**
- * Log a payment attempt
- */
 function logPayment(log: PaymentLog): void {
   paymentLogs.push(log);
-  console.log(`[x402] Payment ${log.status}:`, {
-    capability: log.capability,
-    price: log.price,
-    payer: log.payerAddress ?? 'unknown',
-  });
+
+  const statusColors: Record<string, string> = {
+    pending: '\x1b[33m',    // yellow
+    verified: '\x1b[36m',   // cyan
+    settled: '\x1b[32m',    // green
+    failed: '\x1b[31m',     // red
+  };
+
+  const color = statusColors[log.status] ?? '\x1b[0m';
+  const reset = '\x1b[0m';
+
+  console.log(`[x402] ${color}${log.status.toUpperCase()}${reset}: ${log.capability} (${log.price})`);
+
+  if (log.transactionHash) {
+    console.log(`[x402]   TX: ${log.transactionHash}`);
+  }
 }
 
-/**
- * Get recent payment logs
- */
 export function getPaymentLogs(limit = 100): PaymentLog[] {
   return paymentLogs.slice(-limit);
 }
 
+// =========================================
+// Price Utilities
+// =========================================
+
 /**
- * Development mock middleware - skips payment verification
+ * Convert price string (e.g., "$0.01") to base units (e.g., "10000" for 6 decimals)
  */
+function priceToBaseUnits(priceString: string): string {
+  // Remove $ and parse as float
+  const price = parseFloat(priceString.replace('$', ''));
+
+  // Convert to base units (6 decimals for USDC)
+  const baseUnits = Math.round(price * 1_000_000);
+
+  return baseUnits.toString();
+}
+
+/**
+ * Generate payment requirements for a capability
+ */
+function generatePaymentRequirements(capabilitySlug: string): PaymentRequirements {
+  const meta = CAPABILITIES_META[capabilitySlug as CapabilitySlug];
+
+  if (!meta) {
+    throw new Error(`Unknown capability: ${capabilitySlug}`);
+  }
+
+  const fac = getFacilitator();
+
+  return fac.generatePaymentRequirements({
+    payTo: config.recipientAddress,
+    asset: paymentAsset,
+    description: `CronosAI: ${meta.name}`,
+    maxAmountRequired: priceToBaseUnits(meta.price),
+    mimeType: 'application/json',
+    maxTimeoutSeconds: 300, // 5 minutes
+    resource: `/capability/${capabilitySlug}`,
+  });
+}
+
+// =========================================
+// Helpers
+// =========================================
+
+/**
+ * Extract slug from request path or params
+ * Note: When middleware runs before route matching, params may be empty,
+ * so we also try to extract from the path directly.
+ */
+function getSlugParam(req: Request): string | undefined {
+  // Try params first
+  const param = req.params['slug'];
+  if (param) {
+    return Array.isArray(param) ? param[0] : param;
+  }
+
+  // Fallback: extract from path (e.g., "/contract-scan" -> "contract-scan")
+  const pathMatch = req.path.match(/^\/([a-z-]+)$/);
+  if (pathMatch) {
+    return pathMatch[1];
+  }
+
+  return undefined;
+}
+
+// =========================================
+// Mock Middleware (development only)
+// =========================================
+
 function createMockMiddleware() {
   return (req: Request, _res: Response, next: NextFunction): void => {
-    const slug = req.params['slug'];
+    const slug = getSlugParam(req);
+
     if (slug) {
-      console.log(`[x402 MOCK] Skipping payment for capability: ${slug}`);
+      console.log(`\x1b[33m[x402 MOCK]\x1b[0m Bypassing payment for: ${slug}`);
+
       logPayment({
         timestamp: new Date().toISOString(),
         capability: slug,
         price: CAPABILITIES_META[slug as CapabilitySlug]?.price ?? 'unknown',
-        status: 'verified',
+        network: config.networkId,
+        status: 'settled',
       });
     }
+
     next();
   };
 }
 
-/**
- * Production x402 middleware
- */
-async function createProductionMiddleware() {
-  // Dynamic imports to avoid loading heavy deps when not needed
-  const { paymentMiddleware, x402ResourceServer } = await import('@x402/express');
-  const { HTTPFacilitatorClient } = await import('@x402/core/server');
-  const { ExactEvmScheme } = await import('@x402/evm/exact/server');
+// =========================================
+// Production Middleware
+// =========================================
 
-  // Validate required config
-  if (!config.recipientAddress) {
-    throw new Error('RECIPIENT_ADDRESS is required for x402 payments');
-  }
+function createProductionMiddleware() {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const slug = getSlugParam(req);
 
-  // Create facilitator client
-  const facilitatorClient = new HTTPFacilitatorClient({
-    url: config.x402FacilitatorUrl,
-  });
-
-  // Create resource server with EVM scheme
-  const resourceServer = new x402ResourceServer(facilitatorClient)
-    .register(CRONOS_NETWORK, new ExactEvmScheme());
-
-  // Generate route configs
-  const routes = generateRouteConfigs();
-
-  console.log('[x402] Configured routes:', Object.keys(routes));
-
-  // Create the middleware (type assertion needed due to x402 internal types)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return paymentMiddleware(routes as any, resourceServer);
-}
-
-/**
- * x402 middleware factory
- * Returns mock in development if SKIP_X402=true, otherwise returns real middleware
- */
-export async function createX402Middleware(): Promise<(req: Request, res: Response, next: NextFunction) => void | Promise<void>> {
-  if (config.skipX402) {
-    console.log('[x402] Running in MOCK mode (SKIP_X402=true)');
-    return createMockMiddleware();
-  }
-
-  if (config.nodeEnv === 'development' && !config.recipientAddress) {
-    console.warn('[x402] No RECIPIENT_ADDRESS configured, running in MOCK mode');
-    return createMockMiddleware();
-  }
-
-  try {
-    const middleware = await createProductionMiddleware();
-    console.log('[x402] Production middleware initialized');
-    return middleware;
-  } catch (error) {
-    console.error('[x402] Failed to initialize production middleware:', error);
-    if (config.nodeEnv === 'development') {
-      console.warn('[x402] Falling back to MOCK mode');
-      return createMockMiddleware();
+    if (!slug || !CAPABILITIES_META[slug as CapabilitySlug]) {
+      // Not a capability request, pass through
+      next();
+      return;
     }
-    throw error;
-  }
+
+    const meta = CAPABILITIES_META[slug as CapabilitySlug];
+
+    // Check for X-PAYMENT header (x402 payment proof)
+    const paymentHeader = req.headers['x-payment'] as string | undefined;
+
+    if (!paymentHeader) {
+      // No payment - return 402 with payment requirements
+      const paymentRequirements = generatePaymentRequirements(slug);
+
+      const paymentInfo: X402PaymentInfo = {
+        x402Version: 1,
+        accepts: paymentRequirements,
+      };
+
+      logPayment({
+        timestamp: new Date().toISOString(),
+        capability: slug,
+        price: meta.price,
+        network: config.networkId,
+        status: 'pending',
+      });
+
+      res.status(402).json(paymentInfo);
+      return;
+    }
+
+    // Payment header present - verify and settle
+    try {
+      const fac = getFacilitator();
+      const paymentRequirements = generatePaymentRequirements(slug);
+
+      // Build verify request
+      const verifyRequest: VerifyRequest = fac.buildVerifyRequest(
+        paymentHeader,
+        paymentRequirements
+      );
+
+      // Step 1: Verify payment
+      const verifyResult = await fac.verifyPayment(verifyRequest);
+
+      if (!verifyResult.isValid) {
+        logPayment({
+          timestamp: new Date().toISOString(),
+          capability: slug,
+          price: meta.price,
+          network: config.networkId,
+          status: 'failed',
+        });
+
+        res.status(402).json({
+          x402Version: 1,
+          error: verifyResult.invalidReason ?? 'Payment verification failed',
+          accepts: paymentRequirements,
+        });
+        return;
+      }
+
+      logPayment({
+        timestamp: new Date().toISOString(),
+        capability: slug,
+        price: meta.price,
+        network: config.networkId,
+        status: 'verified',
+      });
+
+      // Step 2: Settle payment (execute on-chain)
+      const settleResult = await fac.settlePayment(verifyRequest);
+
+      if (!settleResult.txHash) {
+        logPayment({
+          timestamp: new Date().toISOString(),
+          capability: slug,
+          price: meta.price,
+          network: config.networkId,
+          status: 'failed',
+        });
+
+        res.status(402).json({
+          x402Version: 1,
+          error: settleResult.error ?? 'Payment settlement failed',
+          accepts: paymentRequirements,
+        });
+        return;
+      }
+
+      // Payment successful!
+      logPayment({
+        timestamp: new Date().toISOString(),
+        capability: slug,
+        price: meta.price,
+        network: config.networkId,
+        transactionHash: settleResult.txHash,
+        payerAddress: settleResult.from,
+        status: 'settled',
+      });
+
+      // Attach payment info to request for downstream use
+      (req as Request & { x402Payment?: typeof settleResult }).x402Payment = settleResult;
+
+      // Continue to capability execution
+      next();
+    } catch (error) {
+      console.error('[x402] Error processing payment:', error);
+
+      logPayment({
+        timestamp: new Date().toISOString(),
+        capability: slug,
+        price: meta.price,
+        network: config.networkId,
+        status: 'failed',
+      });
+
+      res.status(500).json({
+        success: false,
+        error: 'PAYMENT_ERROR',
+        message: 'Failed to process payment. Please try again.',
+      });
+    }
+  };
 }
 
-/**
- * Get route configuration (for debugging/info)
- */
-export function getRouteConfigs(): Record<string, unknown> {
-  return generateRouteConfigs();
+// =========================================
+// Middleware Factory
+// =========================================
+
+export async function createX402Middleware(): Promise<
+  (req: Request, res: Response, next: NextFunction) => void | Promise<void>
+> {
+  // Mock mode (development only)
+  if (config.skipX402) {
+    console.log(`\x1b[33m[x402] Running in MOCK mode\x1b[0m`);
+    return createMockMiddleware();
+  }
+
+  // Production mode
+  console.log(`[x402] Initialized for ${config.networkId}`);
+  console.log(`[x402] Payment token: ${config.paymentToken.symbol} (${config.paymentToken.address})`);
+  console.log(`[x402] Recipient: ${config.recipientAddress}`);
+
+  return createProductionMiddleware();
 }
+
+// =========================================
+// Utility Exports
+// =========================================
+
+export function getPaymentRequirementsForCapability(slug: string): PaymentRequirements {
+  return generatePaymentRequirements(slug);
+}
+
+export { cronosNetwork, paymentAsset };

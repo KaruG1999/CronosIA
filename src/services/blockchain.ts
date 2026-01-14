@@ -14,7 +14,7 @@ const RPC_TIMEOUT_MS = 10000;
  */
 export function getProvider(): JsonRpcProvider {
   if (!provider) {
-    provider = new JsonRpcProvider(config.cronosRpcUrl, config.chainId, {
+    provider = new JsonRpcProvider(config.rpcUrl, config.chainId, {
       staticNetwork: true,
     });
   }

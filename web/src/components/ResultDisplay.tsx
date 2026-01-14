@@ -10,17 +10,24 @@ import type {
 interface ResultDisplayProps {
   capability: string;
   result: CapabilityResult;
+  paidAmount?: string;
 }
+
+// Capability display names
+const CAPABILITY_NAMES: Record<string, string> = {
+  'contract-scan': 'Contract Scan',
+  'wallet-approvals': 'Wallet Approvals',
+  'tx-simulate': 'Tx Simulate',
+};
 
 function RiskBadge({ level }: { level: RiskLevel }) {
   const config = {
-    low: { label: 'BAJO', class: 'badge-safe' },
-    medium: { label: 'MEDIO', class: 'badge-warning' },
-    high: { label: 'ALTO', class: 'badge-danger' },
+    low: { label: 'Low Risk', className: 'badge-safe' },
+    medium: { label: 'Medium Risk', className: 'badge-warning' },
+    high: { label: 'High Risk', className: 'badge-danger' },
   };
 
-  const { label, class: className } = config[level];
-
+  const { label, className } = config[level];
   return <span className={className}>{label}</span>;
 }
 
@@ -29,40 +36,60 @@ function WarningsList({ warnings }: { warnings: Warning[] }) {
 
   return (
     <div className="space-y-2 mt-4">
+      <p className="text-xs font-medium text-text-secondary uppercase tracking-wide">
+        Warnings ({warnings.length})
+      </p>
       {warnings.map((warning, index) => (
         <div
           key={index}
           className={`
-            flex items-start gap-2 p-3 rounded-lg text-sm
+            p-3 rounded-lg text-sm
             ${
               warning.level === 'danger'
-                ? 'bg-status-danger/10 border border-status-danger/30 text-status-danger'
+                ? 'bg-status-danger/5 border border-status-danger/20 text-status-danger'
                 : warning.level === 'warning'
-                ? 'bg-status-warning/10 border border-status-warning/30 text-status-warning'
-                : 'bg-neon-cyan/10 border border-neon-cyan/30 text-neon-cyan'
+                ? 'bg-status-warning/5 border border-status-warning/20 text-status-warning'
+                : 'bg-accent/5 border border-accent/20 text-accent'
             }
           `}
         >
-          <span>
-            {warning.level === 'danger'
-              ? '⛔'
-              : warning.level === 'warning'
-              ? '⚠️'
-              : 'ℹ️'}
-          </span>
-          <span>{warning.message}</span>
+          {warning.message}
         </div>
       ))}
     </div>
   );
 }
 
-function Disclaimer({ limitations }: { limitations: string[] }) {
+function LimitationsSection({ limitations }: { limitations: string[] }) {
+  if (limitations.length === 0) {
+    limitations = [
+      'This analysis is informational only.',
+      'Verify with official sources before making decisions.',
+    ];
+  }
+
   return (
-    <div className="mt-4 pt-4 border-t border-neon-cyan/10">
-      <p className="text-xs text-text-secondary">
-        ⚠️ {limitations[0] || 'Este analisis es orientativo, no garantiza seguridad.'}
+    <div className="mt-5 pt-4 border-t border-surface-border">
+      <p className="text-xs font-medium text-text-tertiary uppercase tracking-wide mb-2">
+        Limitations
       </p>
+      <ul className="space-y-1">
+        {limitations.map((limitation, index) => (
+          <li key={index} className="text-xs text-text-secondary flex items-start gap-2">
+            <span className="text-text-tertiary">•</span>
+            <span>{limitation}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function HighRiskAlert({ message }: { message: string }) {
+  return (
+    <div className="bg-status-danger/5 border border-status-danger/20 rounded-lg p-4 mb-4">
+      <p className="font-semibold text-status-danger text-sm">High Risk Detected</p>
+      <p className="text-xs text-status-danger/80 mt-1">{message}</p>
     </div>
   );
 }
@@ -72,78 +99,68 @@ function ContractScanResult({ data }: { data: ContractScanData }) {
 
   if (!data.isContract) {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 text-text-secondary">
-          <span>ℹ️</span>
-          <span>Esta direccion no es un contrato, es una wallet comun.</span>
-        </div>
+      <div className="bg-surface-hover rounded-lg p-4">
+        <p className="font-medium text-text-primary text-sm">Not a Contract</p>
+        <p className="text-xs text-text-secondary mt-1">
+          This address is a regular wallet (EOA), not a smart contract.
+        </p>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-text-secondary">Contrato</p>
-          <p className="font-mono text-white">{shortAddress}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-sm text-text-secondary">Riesgo</p>
-          <RiskBadge level={data.riskLevel} />
-        </div>
-      </div>
-
-      {/* Risk alert for high risk */}
       {data.riskLevel === 'high' && (
-        <div className="bg-status-danger/10 border border-status-danger/30 rounded-lg p-4">
-          <div className="flex items-center gap-2 text-status-danger font-semibold mb-2">
-            <span>⛔</span>
-            <span>ATENCION: Senales de riesgo detectadas</span>
-          </div>
-          <p className="text-sm text-status-danger/80">
-            Recomendamos verificar la legitimidad antes de interactuar.
-          </p>
-        </div>
+        <HighRiskAlert message="Multiple risk signals detected. Verify before interacting." />
       )}
 
-      {/* Details */}
-      <div className="grid grid-cols-2 gap-4 text-sm">
-        <div className="bg-cronos-deep/50 rounded-lg p-3">
-          <p className="text-text-secondary">Verificado</p>
-          <p className={data.verified ? 'text-status-safe' : 'text-status-warning'}>
-            {data.verified ? '✓ Si' : '✗ No'}
+      {/* Header */}
+      <div className="flex items-center justify-between p-3 bg-surface-hover rounded-lg">
+        <div>
+          <p className="text-xs text-text-tertiary">Contract</p>
+          <p className="font-mono text-sm text-text-primary">{shortAddress}</p>
+        </div>
+        <RiskBadge level={data.riskLevel} />
+      </div>
+
+      {/* Details grid */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="bg-surface-hover rounded-lg p-3">
+          <p className="text-xs text-text-tertiary">Verified</p>
+          <p className={`text-sm font-medium ${data.verified ? 'text-status-safe' : 'text-status-warning'}`}>
+            {data.verified ? 'Yes' : 'No'}
           </p>
         </div>
-        <div className="bg-cronos-deep/50 rounded-lg p-3">
-          <p className="text-text-secondary">Antiguedad</p>
-          <p className="text-white">{data.ageDays} dias</p>
+        <div className="bg-surface-hover rounded-lg p-3">
+          <p className="text-xs text-text-tertiary">Age</p>
+          <p className="text-sm font-medium text-text-primary">{data.ageDays} days</p>
         </div>
-        <div className="bg-cronos-deep/50 rounded-lg p-3">
-          <p className="text-text-secondary">Transacciones</p>
-          <p className="text-white">{data.txCount.toLocaleString()}</p>
+        <div className="bg-surface-hover rounded-lg p-3">
+          <p className="text-xs text-text-tertiary">Transactions</p>
+          <p className="text-sm font-medium text-text-primary">{data.txCount.toLocaleString()}</p>
         </div>
-        <div className="bg-cronos-deep/50 rounded-lg p-3">
-          <p className="text-text-secondary">Es Proxy</p>
-          <p className="text-white">{data.isProxy ? 'Si' : 'No'}</p>
+        <div className="bg-surface-hover rounded-lg p-3">
+          <p className="text-xs text-text-tertiary">Proxy</p>
+          <p className="text-sm font-medium text-text-primary">{data.isProxy ? 'Yes' : 'No'}</p>
         </div>
       </div>
 
       {/* Signals */}
       {data.signals.length > 0 && (
         <div className="space-y-2">
-          <p className="text-sm font-medium text-text-secondary">Senales detectadas:</p>
+          <p className="text-xs font-medium text-text-tertiary uppercase tracking-wide">
+            Signals ({data.signals.length})
+          </p>
           {data.signals.map((signal, index) => (
             <div
               key={index}
-              className={`
-                flex items-center gap-2 text-sm
-                ${signal.type === 'warning' ? 'text-status-warning' : 'text-neon-cyan'}
-              `}
+              className={`p-2 rounded-lg text-xs ${
+                signal.type === 'warning'
+                  ? 'bg-status-warning/5 text-status-warning'
+                  : 'bg-accent/5 text-accent'
+              }`}
             >
-              <span>{signal.type === 'warning' ? '⚠️' : 'ℹ️'}</span>
-              <span>{signal.message}</span>
+              {signal.message}
             </div>
           ))}
         </div>
@@ -157,61 +174,61 @@ function WalletApprovalsResult({ data }: { data: WalletApprovalsData }) {
 
   return (
     <div className="space-y-4">
+      {data.highRiskCount > 0 && (
+        <HighRiskAlert
+          message={`${data.highRiskCount} high-risk approval${data.highRiskCount > 1 ? 's' : ''} found.`}
+        />
+      )}
+
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between p-3 bg-surface-hover rounded-lg">
         <div>
-          <p className="text-sm text-text-secondary">Wallet</p>
-          <p className="font-mono text-white">{shortWallet}</p>
+          <p className="text-xs text-text-tertiary">Wallet</p>
+          <p className="font-mono text-sm text-text-primary">{shortWallet}</p>
         </div>
         <div className="text-right">
-          <p className="text-sm text-text-secondary">Total Approvals</p>
-          <p className="text-xl font-bold text-white">{data.totalApprovals}</p>
+          <p className="text-xs text-text-tertiary">Total</p>
+          <p className="text-lg font-semibold text-text-primary">{data.totalApprovals}</p>
         </div>
       </div>
 
-      {/* High risk alert */}
-      {data.highRiskCount > 0 && (
-        <div className="bg-status-danger/10 border border-status-danger/30 rounded-lg p-4">
-          <div className="flex items-center gap-2 text-status-danger font-semibold">
-            <span>⛔</span>
-            <span>
-              {data.highRiskCount} approval{data.highRiskCount > 1 ? 's' : ''} de alto riesgo
-            </span>
-          </div>
-        </div>
-      )}
-
       {/* Approvals list */}
       {data.approvals.length > 0 ? (
-        <div className="space-y-3">
-          <p className="text-sm font-medium text-text-secondary">Approvals activos:</p>
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-text-tertiary uppercase tracking-wide">
+            Active Approvals
+          </p>
           {data.approvals.map((approval, index) => (
             <div
               key={index}
-              className={`
-                bg-cronos-deep/50 rounded-lg p-3 border-l-4
-                ${
-                  approval.risk === 'high'
-                    ? 'border-status-danger'
-                    : approval.risk === 'medium'
-                    ? 'border-status-warning'
-                    : 'border-status-safe'
-                }
-              `}
+              className={`bg-surface-hover rounded-lg p-3 border-l-2 ${
+                approval.risk === 'high'
+                  ? 'border-status-danger'
+                  : approval.risk === 'medium'
+                  ? 'border-status-warning'
+                  : 'border-status-safe'
+              }`}
             >
               <div className="flex items-center justify-between mb-1">
-                <span className="font-medium text-white">{approval.token}</span>
+                <span className="font-medium text-sm text-text-primary">{approval.token}</span>
                 <RiskBadge level={approval.risk} />
               </div>
-              <p className="text-sm text-text-secondary">
-                → {approval.spenderName}
+              <p className="text-xs text-text-secondary">
+                Spender: {approval.spenderName}
               </p>
-              <p className="text-sm text-neon-cyan">{approval.amountFormatted}</p>
+              <p className="text-xs text-accent mt-1">
+                Amount: {approval.amountFormatted}
+                {approval.isUnlimited && (
+                  <span className="text-status-danger ml-1">(Unlimited)</span>
+                )}
+              </p>
             </div>
           ))}
         </div>
       ) : (
-        <p className="text-text-secondary">No se encontraron approvals activos.</p>
+        <div className="p-4 bg-status-safe/5 border border-status-safe/20 rounded-lg text-center">
+          <p className="text-status-safe text-sm font-medium">No active approvals</p>
+        </div>
       )}
     </div>
   );
@@ -222,59 +239,60 @@ function TxSimulateResult({ data }: { data: TxSimulateData }) {
 
   return (
     <div className="space-y-4">
-      {/* Swap summary */}
-      <div className="bg-cronos-deep/50 rounded-lg p-4 text-center">
-        <p className="text-sm text-text-secondary mb-2">Simulacion de Swap</p>
-        <div className="flex items-center justify-center gap-4">
-          <div>
-            <p className="text-2xl font-bold text-white">{data.input.amountFormatted}</p>
-          </div>
-          <span className="text-2xl text-neon-cyan">→</span>
-          <div>
-            <p className="text-2xl font-bold text-status-safe">{data.output.amountFormatted}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* High price impact warning */}
       {highImpact && (
-        <div className="bg-status-warning/10 border border-status-warning/30 rounded-lg p-4">
-          <div className="flex items-center gap-2 text-status-warning font-semibold mb-1">
-            <span>⚠️</span>
-            <span>Price Impact Alto: {data.priceImpactPercent.toFixed(2)}%</span>
-          </div>
-          <p className="text-sm text-status-warning/80">
-            Vas a recibir menos de lo esperado. Considera dividir la operacion.
+        <div className="bg-status-warning/5 border border-status-warning/20 rounded-lg p-4">
+          <p className="font-semibold text-status-warning text-sm">
+            High Price Impact: {data.priceImpactPercent.toFixed(2)}%
+          </p>
+          <p className="text-xs text-status-warning/80 mt-1">
+            Consider splitting the trade into smaller amounts.
           </p>
         </div>
       )}
 
-      {/* Details */}
-      <div className="grid grid-cols-2 gap-4 text-sm">
-        <div className="bg-cronos-deep/50 rounded-lg p-3">
-          <p className="text-text-secondary">DEX</p>
-          <p className="text-white">{data.dex}</p>
+      {/* Swap summary */}
+      <div className="bg-surface-hover rounded-lg p-4 text-center">
+        <div className="flex items-center justify-center gap-4">
+          <div>
+            <p className="text-lg font-semibold text-text-primary">{data.input.amountFormatted}</p>
+            <p className="text-xs text-text-secondary">You send</p>
+          </div>
+          <span className="text-xl text-accent">&rarr;</span>
+          <div>
+            <p className="text-lg font-semibold text-status-safe">{data.output.amountFormatted}</p>
+            <p className="text-xs text-text-secondary">You receive</p>
+          </div>
         </div>
-        <div className="bg-cronos-deep/50 rounded-lg p-3">
-          <p className="text-text-secondary">Price Impact</p>
-          <p className={highImpact ? 'text-status-warning' : 'text-white'}>
+      </div>
+
+      {/* Details grid */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="bg-surface-hover rounded-lg p-3">
+          <p className="text-xs text-text-tertiary">DEX</p>
+          <p className="text-sm font-medium text-text-primary">{data.dex}</p>
+        </div>
+        <div className="bg-surface-hover rounded-lg p-3">
+          <p className="text-xs text-text-tertiary">Price Impact</p>
+          <p className={`text-sm font-medium ${highImpact ? 'text-status-warning' : 'text-text-primary'}`}>
             {data.priceImpactPercent.toFixed(2)}%
           </p>
         </div>
-        <div className="bg-cronos-deep/50 rounded-lg p-3">
-          <p className="text-text-secondary">Ruta</p>
-          <p className="text-white">{data.route.join(' → ')}</p>
+        <div className="bg-surface-hover rounded-lg p-3">
+          <p className="text-xs text-text-tertiary">Route</p>
+          <p className="text-xs font-medium text-text-primary">{data.route.join(' → ')}</p>
         </div>
-        <div className="bg-cronos-deep/50 rounded-lg p-3">
-          <p className="text-text-secondary">Gas Estimado</p>
-          <p className="text-white">{data.estimatedGas}</p>
+        <div className="bg-surface-hover rounded-lg p-3">
+          <p className="text-xs text-text-tertiary">Est. Gas</p>
+          <p className="text-sm font-medium text-text-primary">{data.estimatedGas}</p>
         </div>
       </div>
     </div>
   );
 }
 
-export function ResultDisplay({ capability, result }: ResultDisplayProps) {
+export function ResultDisplay({ capability, result, paidAmount }: ResultDisplayProps) {
+  const capabilityName = CAPABILITY_NAMES[capability] || capability;
+
   const renderResult = () => {
     switch (capability) {
       case 'contract-scan':
@@ -285,7 +303,7 @@ export function ResultDisplay({ capability, result }: ResultDisplayProps) {
         return <TxSimulateResult data={result.data as TxSimulateData} />;
       default:
         return (
-          <pre className="text-sm text-text-secondary overflow-auto">
+          <pre className="text-xs text-text-secondary overflow-auto">
             {JSON.stringify(result.data, null, 2)}
           </pre>
         );
@@ -294,14 +312,17 @@ export function ResultDisplay({ capability, result }: ResultDisplayProps) {
 
   return (
     <div className="card">
-      {/* Agent avatar */}
-      <div className="flex items-center gap-3 mb-4 pb-4 border-b border-neon-cyan/10">
-        <img
-          src="/images/LogoSinFondo.png"
-          alt="CronosIA"
-          className="w-8 h-8 object-contain"
-        />
-        <span className="text-sm font-medium text-neon-cyan">CronosIA Agent</span>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4 pb-3 border-b border-surface-border">
+        <div>
+          <p className="text-sm font-medium text-text-primary">{capabilityName}</p>
+          <p className="text-xs text-text-tertiary">Analysis Result</p>
+        </div>
+        {paidAmount && (
+          <span className="text-xs bg-accent/10 text-accent px-2 py-1 rounded">
+            Paid: {paidAmount}
+          </span>
+        )}
       </div>
 
       {/* Result content */}
@@ -310,8 +331,8 @@ export function ResultDisplay({ capability, result }: ResultDisplayProps) {
       {/* Warnings */}
       <WarningsList warnings={result.warnings} />
 
-      {/* Disclaimer */}
-      <Disclaimer limitations={result.limitations} />
+      {/* Limitations */}
+      <LimitationsSection limitations={result.limitations} />
     </div>
   );
 }

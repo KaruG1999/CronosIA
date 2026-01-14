@@ -372,24 +372,44 @@ NODE_ENV=development
 
 ---
 
-## Dependencias Mínimas
+## Dependencias Implementadas
 
+### Backend
 ```json
 {
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",
-    "@x402/express": "latest",
-    "express": "^4.18.0",
-    "ethers": "^6.0.0",
+    "@crypto.com/facilitator-client": "^1.0.4",
+    "express": "^4.21.0",
+    "ethers": "^6.16.0",
     "zod": "^3.23.0",
-    "cors": "^2.8.0",
-    "helmet": "^7.0.0"
+    "cors": "^2.8.5",
+    "helmet": "^8.0.0",
+    "dotenv": "^17.2.3"
   },
   "devDependencies": {
-    "typescript": "^5.0.0",
-    "@types/express": "^4.17.0",
-    "@types/node": "^20.0.0",
-    "tsx": "^4.0.0"
+    "typescript": "^5.6.0",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0"
+  }
+}
+```
+
+### Frontend
+```json
+{
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "@tanstack/react-query": "^5.90.16",
+    "wagmi": "^2.19.5",
+    "viem": "^2.44.2"
+  },
+  "devDependencies": {
+    "vite": "^7.2.4",
+    "tailwindcss": "^3.4.19",
+    "typescript": "~5.9.3"
   }
 }
 ```

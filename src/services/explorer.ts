@@ -63,7 +63,7 @@ async function explorerFetch<T>(
   action: string,
   params: Record<string, string>
 ): Promise<T> {
-  const url = new URL(config.cronosExplorerApi);
+  const url = new URL(config.explorerApiUrl);
   url.searchParams.set('module', module);
   url.searchParams.set('action', action);
 
@@ -71,8 +71,8 @@ async function explorerFetch<T>(
     url.searchParams.set(key, value);
   }
 
-  if (config.cronosExplorerApiKey) {
-    url.searchParams.set('apikey', config.cronosExplorerApiKey);
+  if (config.explorerApiKey) {
+    url.searchParams.set('apikey', config.explorerApiKey);
   }
 
   const controller = new AbortController();

@@ -1,29 +1,33 @@
-/* Import Inter font - must be first */
+/* Import Inter font */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Base styles */
+/* ============================================
+   Base styles - Professional Dark Theme
+   ============================================ */
 :root {
-  /* Base colors */
-  --bg-cronos-deep: #0A1128;
-  --bg-card-surface: #131B36;
+  /* Surface colors */
+  --surface-base: #0C0C0E;
+  --surface-elevated: #141416;
+  --surface-hover: #1A1A1D;
+  --surface-border: #262629;
 
-  /* Neon accents */
-  --neon-primary: linear-gradient(135deg, #00F0FF, #0057FF);
-  --neon-cyan: #00F0FF;
-  --neon-blue: #0057FF;
+  /* Accent - used sparingly */
+  --accent: #3B82F6;
+  --accent-muted: #2563EB;
 
   /* Text */
-  --text-primary: #FFFFFF;
-  --text-secondary: #A0AEC0;
+  --text-primary: #F4F4F5;
+  --text-secondary: #71717A;
+  --text-tertiary: #52525B;
 
   /* Status */
-  --status-safe: #00FF94;
-  --status-warning: #FFD600;
-  --status-danger: #FF005C;
+  --status-safe: #22C55E;
+  --status-warning: #EAB308;
+  --status-danger: #EF4444;
 }
 
 * {
@@ -38,128 +42,302 @@ html, body, #root {
 
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background-color: var(--bg-cronos-deep);
+  background-color: var(--surface-base);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
 }
 
-/* Hex grid background pattern */
-.bg-hex-pattern {
-  background-image:
-    linear-gradient(to right, rgba(0, 240, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
-  background-size: 40px 40px;
-}
-
-/* Neon glow effects */
+/* ============================================
+   Component styles - Clean and Professional
+   ============================================ */
 @layer components {
-  .neon-border {
-    @apply border border-neon-cyan/30;
-    box-shadow: 0 0 20px rgba(0, 240, 255, 0.1);
+  /* Primary button - solid accent */
+  .btn-primary {
+    @apply px-5 py-2.5 rounded-lg font-medium text-white transition-colors duration-200;
+    background-color: var(--accent);
   }
 
-  .neon-border-active {
-    @apply border border-neon-cyan;
-    box-shadow: 0 0 30px rgba(0, 240, 255, 0.3);
+  .btn-primary:hover:not(:disabled) {
+    background-color: var(--accent-muted);
   }
 
+  .btn-primary:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+
+  .btn-primary:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  .btn-primary:focus-visible {
+    @apply outline-none;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+  }
+
+  /* Secondary button - subtle border */
+  .btn-secondary {
+    @apply px-5 py-2.5 rounded-lg font-medium transition-colors duration-200;
+    background-color: transparent;
+    border: 1px solid var(--surface-border);
+    color: var(--text-secondary);
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    background-color: var(--surface-hover);
+    border-color: var(--text-tertiary);
+    color: var(--text-primary);
+  }
+
+  /* Legacy button class (for compatibility) */
   .neon-button {
-    @apply px-6 py-3 rounded-lg font-semibold text-white transition-all duration-300;
-    background: linear-gradient(135deg, #00F0FF, #0057FF);
-    box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
+    @apply btn-primary;
   }
 
-  .neon-button:hover {
-    box-shadow: 0 0 30px rgba(0, 240, 255, 0.5);
-    transform: translateY(-1px);
-  }
-
-  .neon-button:active {
-    transform: translateY(0);
-  }
-
-  .neon-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
-  }
-
+  /* Card - elevated surface */
   .card {
-    @apply bg-card-surface rounded-xl p-6;
-    border: 1px solid rgba(0, 240, 255, 0.1);
+    @apply rounded-xl p-5;
+    background-color: var(--surface-elevated);
+    border: 1px solid var(--surface-border);
   }
 
-  .card-hover {
-    @apply card transition-all duration-300 cursor-pointer;
+  .card-interactive {
+    @apply card transition-all duration-200 cursor-pointer;
   }
 
-  .card-hover:hover {
-    border-color: rgba(0, 240, 255, 0.3);
-    box-shadow: 0 0 30px rgba(0, 240, 255, 0.15);
+  .card-interactive:hover {
+    background-color: var(--surface-hover);
+    border-color: var(--text-tertiary);
   }
 
-  /* Status badges */
+  /* Status badges - subtle backgrounds */
+  .badge {
+    @apply px-2.5 py-1 rounded-md text-xs font-medium;
+  }
+
   .badge-safe {
-    @apply px-3 py-1 rounded-full text-sm font-medium;
-    background: rgba(0, 255, 148, 0.15);
+    @apply badge;
+    background: rgba(34, 197, 94, 0.1);
     color: var(--status-safe);
-    box-shadow: 0 0 15px rgba(0, 255, 148, 0.2);
   }
 
   .badge-warning {
-    @apply px-3 py-1 rounded-full text-sm font-medium;
-    background: rgba(255, 214, 0, 0.15);
+    @apply badge;
+    background: rgba(234, 179, 8, 0.1);
     color: var(--status-warning);
-    box-shadow: 0 0 15px rgba(255, 214, 0, 0.2);
   }
 
   .badge-danger {
-    @apply px-3 py-1 rounded-full text-sm font-medium;
-    background: rgba(255, 0, 92, 0.15);
+    @apply badge;
+    background: rgba(239, 68, 68, 0.1);
     color: var(--status-danger);
-    box-shadow: 0 0 15px rgba(255, 0, 92, 0.2);
   }
 
-  /* Input with neon glow */
+  /* Input field */
+  .input {
+    @apply w-full rounded-lg px-4 py-3 text-sm transition-colors duration-200;
+    background-color: var(--surface-elevated);
+    border: 1px solid var(--surface-border);
+    color: var(--text-primary);
+    min-height: 44px;
+  }
+
+  .input::placeholder {
+    color: var(--text-tertiary);
+  }
+
+  .input:focus {
+    @apply outline-none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  .input:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  /* Legacy input class */
   .neon-input {
-    @apply w-full bg-card-surface border border-neon-cyan/20 rounded-lg px-4 py-3 text-white placeholder-text-secondary/50 transition-all duration-300;
+    @apply input;
   }
 
-  .neon-input:focus {
-    @apply outline-none border-neon-cyan;
-    box-shadow: 0 0 20px rgba(0, 240, 255, 0.2);
+  /* Panel - for larger containers */
+  .panel {
+    @apply rounded-xl;
+    background-color: var(--surface-elevated);
+    border: 1px solid var(--surface-border);
+  }
+
+  /* Legacy class */
+  .command-center-panel {
+    @apply panel;
+  }
+
+  /* Step card - for flow diagrams (informational, not interactive) */
+  .step-card {
+    @apply rounded-lg p-4;
+    background-color: rgba(20, 20, 22, 0.5);
+    border: 1px solid var(--surface-border);
+  }
+
+  /* Capability card */
+  .capability-card {
+    position: relative;
+  }
+
+  /* Price display - accent color */
+  .price-badge {
+    @apply text-sm font-semibold px-3 py-1 rounded-md;
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--accent);
+  }
+
+  .price-badge-selected {
+    @apply price-badge;
+    background-color: var(--accent);
+    color: white;
   }
 }
 
-/* Scrollbar styling */
+/* ============================================
+   Scrollbar - Minimal
+   ============================================ */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-cronos-deep);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 240, 255, 0.3);
-  border-radius: 4px;
+  background: var(--surface-border);
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 240, 255, 0.5);
+  background: var(--text-tertiary);
 }
 
-/* Animations */
-@keyframes pulse-glow {
-  0%, 100% {
-    filter: brightness(1) drop-shadow(0 0 10px rgba(0, 240, 255, 0.5));
+/* ============================================
+   Animations - Subtle
+   ============================================ */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
   }
-  50% {
-    filter: brightness(1.2) drop-shadow(0 0 25px rgba(0, 240, 255, 0.8));
+  to {
+    opacity: 1;
   }
 }
 
-.animate-pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.animate-slideUp {
+  animation: slideUp 0.3s ease-out;
+}
+
+/* Spin for loading states only */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* ============================================
+   Focus styles - Accessibility
+   ============================================ */
+button:focus-visible,
+input:focus-visible,
+[role="button"]:focus-visible {
+  @apply outline-none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+}
+
+/* ============================================
+   Responsive adjustments
+   ============================================ */
+@media (max-width: 640px) {
+  .btn-primary,
+  .neon-button {
+    @apply px-4 py-2.5 text-sm;
+  }
+
+  .card {
+    @apply p-4;
+  }
+}
+
+/* ============================================
+   Reduced motion support
+   ============================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================
+   High contrast mode
+   ============================================ */
+@media (prefers-contrast: high) {
+  .badge-safe,
+  .badge-warning,
+  .badge-danger {
+    border: 1px solid currentColor;
+  }
+
+  .input,
+  .neon-input {
+    border-width: 2px;
+  }
+
+  .btn-primary,
+  .neon-button {
+    border: 2px solid white;
+  }
+}
+
+/* ============================================
+   Print styles
+   ============================================ */
+@media print {
+  body {
+    background: white;
+    color: black;
+  }
+
+  .btn-primary,
+  .badge-safe,
+  .badge-warning,
+  .badge-danger {
+    border: 1px solid currentColor;
+    background: transparent;
+  }
 }

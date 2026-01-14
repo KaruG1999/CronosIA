@@ -67,8 +67,8 @@ export async function executeCapability(
 
 // Parse user input for tx-simulate
 export function parseSwapInput(input: string): TxSimulateInput | null {
-  // Match patterns like "100 CRO a USDC" or "100 CRO to USDC"
-  const match = input.match(/(\d+(?:\.\d+)?)\s*(\w+)\s+(?:a|to|->|→)\s*(\w+)/i);
+  // Match patterns like "100 CRO to USDC" or "100 CRO -> USDC"
+  const match = input.match(/(\d+(?:\.\d+)?)\s*(\w+)\s+(?:to|->|→)\s*(\w+)/i);
 
   if (!match) return null;
 

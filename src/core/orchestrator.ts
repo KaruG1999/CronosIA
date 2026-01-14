@@ -34,7 +34,7 @@ export async function executeCapability(
 
   // Check if capability exists
   if (!hasCapability(slug)) {
-    throw createError(Errors.CAPABILITY_NOT_FOUND, `Capability '${slug}' no existe`);
+    throw createError(Errors.CAPABILITY_NOT_FOUND, `Capability '${slug}' not found`);
   }
 
   const capability = getCapability(slug);
@@ -46,7 +46,7 @@ export async function executeCapability(
   const parseResult = capability.inputSchema.safeParse(input);
   if (!parseResult.success) {
     const firstError = parseResult.error.errors[0];
-    const errorMessage = firstError?.message ?? 'Input invalido';
+    const errorMessage = firstError?.message ?? 'Invalid input';
     throw new CapabilityError(
       'Invalid input',
       'INVALID_INPUT',
@@ -105,7 +105,7 @@ async function formatWithClaude(
   const claude = getClaudeClient();
 
   const response = await claude.messages.create({
-    model: 'claude-3-5-haiku-20241022',
+    model: 'claude-3-haiku-20240307',
     max_tokens: 500,
     system: SYSTEM_PROMPT,
     messages: [
@@ -133,9 +133,9 @@ function formatFallback(capability: string, result: CapabilityResult): string {
   if (capability === 'contract-scan') {
     const isContract = data['isContract'] as boolean;
     if (!isContract) {
-      return `Esta direccion no es un contrato inteligente, es una wallet comun.
+      return `This address is not a smart contract, it is a regular wallet (EOA).
 
-Si querias analizar un contrato, verifica que la direccion sea correcta.`;
+If you wanted to analyze a contract, please verify the address is correct.`;
     }
 
     const riskLevel = data['riskLevel'] as string;
@@ -145,35 +145,35 @@ Si querias analizar un contrato, verifica que la direccion sea correcta.`;
     const ageDays = data['ageDays'] as number;
     const txCount = data['txCount'] as number;
 
-    let response = `Analisis completado
+    let response = `Analysis Complete
 
-Contrato: ${shortAddress}
-Riesgo: ${riskLevel.toUpperCase()}
+Contract: ${shortAddress}
+Risk: ${riskLevel.toUpperCase()}
 
 `;
 
     if (riskLevel === 'high') {
-      response += `ATENCION: Detectamos senales de riesgo
+      response += `WARNING: Risk signals detected
 
 `;
     }
 
-    response += `Detalles:
-- Verificado: ${verified ? 'Si' : 'No'}
-- Antiguedad: ${ageDays} dias
-- Transacciones: ${txCount}
+    response += `Details:
+- Verified: ${verified ? 'Yes' : 'No'}
+- Age: ${ageDays} days
+- Transactions: ${txCount}
 
 `;
 
     if (result.warnings.length > 0) {
-      response += `Advertencias:\n`;
+      response += `Warnings:\n`;
       for (const warning of result.warnings) {
         response += `- ${warning.message}\n`;
       }
       response += '\n';
     }
 
-    response += `Recordatorio: ${result.limitations[0] ?? 'Este analisis es orientativo.'}`;
+    response += `Reminder: ${result.limitations[0] ?? 'This analysis is informational only.'}`;
 
     return response;
   }
@@ -190,14 +190,14 @@ Riesgo: ${riskLevel.toUpperCase()}
       risk: string;
     }>;
 
-    let response = `Analisis de Approvals
+    let response = `Approvals Analysis
 
 Wallet: ${shortWallet}
 Total approvals: ${totalApprovals}
 `;
 
     if (highRiskCount > 0) {
-      response += `ATENCION: ${highRiskCount} approval${highRiskCount > 1 ? 's' : ''} de alto riesgo
+      response += `WARNING: ${highRiskCount} high-risk approval${highRiskCount > 1 ? 's' : ''}
 
 `;
     } else {
@@ -205,14 +205,14 @@ Total approvals: ${totalApprovals}
     }
 
     if (approvals.length > 0) {
-      response += `Detalle:\n`;
+      response += `Details:\n`;
       for (const approval of approvals) {
         const riskIcon = approval.risk === 'high' ? '!' : approval.risk === 'medium' ? '?' : '-';
         response += `[${riskIcon}] ${approval.token} -> ${approval.spenderName}: ${approval.amountFormatted}\n`;
       }
       response += '\n';
     } else {
-      response += 'No se encontraron approvals activos.\n\n';
+      response += 'No active approvals found.\n\n';
     }
 
     if (result.warnings.length > 0) {
@@ -222,7 +222,7 @@ Total approvals: ${totalApprovals}
       response += '\n';
     }
 
-    response += `Recordatorio: ${result.limitations[0] ?? 'Este analisis es orientativo.'}`;
+    response += `Reminder: ${result.limitations[0] ?? 'This analysis is informational only.'}`;
 
     return response;
   }
@@ -234,35 +234,35 @@ Total approvals: ${totalApprovals}
     const dex = data['dex'] as string;
     const estimatedGas = data['estimatedGas'] as string;
 
-    let response = `Simulacion de Swap
+    let response = `Swap Simulation
 
 ${input.amountFormatted} -> ${output.amountFormatted}
 
 DEX: ${dex}
 Price Impact: ${priceImpact.toFixed(2)}%
-Gas estimado: ${estimatedGas}
+Estimated Gas: ${estimatedGas}
 
 `;
 
     if (result.warnings.length > 0) {
-      response += `Advertencias:\n`;
+      response += `Warnings:\n`;
       for (const warning of result.warnings) {
         response += `- ${warning.message}\n`;
       }
       response += '\n';
     }
 
-    response += `Recordatorio: ${result.limitations[0] ?? 'Este analisis es orientativo.'}`;
+    response += `Reminder: ${result.limitations[0] ?? 'This analysis is informational only.'}`;
 
     return response;
   }
 
   // Generic fallback
-  return `Resultado del analisis:
+  return `Analysis Result:
 
 ${JSON.stringify(result.data, null, 2)}
 
-${result.limitations[0] ?? 'Este analisis es orientativo.'}`;
+${result.limitations[0] ?? 'This analysis is informational only.'}`;
 }
 
 /**

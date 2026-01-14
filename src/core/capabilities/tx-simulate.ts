@@ -284,28 +284,28 @@ async function executeTxSimulate(
   if (usedMock) {
     warnings.push({
       level: 'info',
-      message: 'Simulacion con datos estimados - conecta a Cronos para datos reales',
+      message: 'Simulation with estimated data - connect to Cronos for real data',
     });
   }
 
   if (priceImpact > 1) {
     warnings.push({
       level: 'warning',
-      message: `Price impact alto: ${priceImpact.toFixed(2)}%. Considera reducir el monto.`,
+      message: `High price impact: ${priceImpact.toFixed(2)}%. Consider reducing the amount.`,
     });
   }
 
   if (priceImpact > 5) {
     warnings.push({
       level: 'danger',
-      message: `Price impact muy alto: ${priceImpact.toFixed(2)}%. Podrias perder valor significativo.`,
+      message: `Very high price impact: ${priceImpact.toFixed(2)}%. You may lose significant value.`,
     });
   }
 
   if (amount > 10000 && (tokenIn.symbol === 'CRO' || tokenIn.symbol === 'WCRO')) {
     warnings.push({
       level: 'info',
-      message: 'Para montos grandes, considera dividir la operacion',
+      message: 'For large amounts, consider splitting the trade',
     });
   }
 

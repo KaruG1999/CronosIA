@@ -36,7 +36,7 @@ export function errorHandler(
   res.status(500).json({
     success: false,
     error: 'INTERNAL_ERROR',
-    message: 'Ocurrio un error inesperado. Intenta de nuevo.',
+    message: 'An unexpected error occurred. Please try again.',
   });
 }
 
@@ -47,6 +47,6 @@ export function notFoundHandler(_req: Request, res: Response): void {
   res.status(404).json({
     success: false,
     error: 'NOT_FOUND',
-    message: 'Recurso no encontrado.',
+    message: 'Resource not found.',
   });
 }

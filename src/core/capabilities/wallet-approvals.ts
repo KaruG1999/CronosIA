@@ -299,7 +299,7 @@ async function executeWalletApprovals(
   if (highRiskCount > 0) {
     warnings.push({
       level: 'danger',
-      message: `Tenes ${highRiskCount} approval${highRiskCount > 1 ? 's' : ''} de alto riesgo`,
+      message: `Found ${highRiskCount} high-risk approval${highRiskCount > 1 ? 's' : ''}`,
     });
   }
 
@@ -358,11 +358,11 @@ function getMockApprovals(address: string): CapabilityResult<WalletApprovalsData
     warnings: [
       {
         level: 'info',
-        message: 'Datos de ejemplo - conecta a Cronos para datos reales',
+        message: 'Demo data - connect to Cronos for real data',
       },
       {
         level: 'danger',
-        message: 'Tenes 1 approval de alto riesgo',
+        message: 'Found 1 high-risk approval',
       },
     ],
     limitations: CAPABILITIES_META['wallet-approvals'].limitations,

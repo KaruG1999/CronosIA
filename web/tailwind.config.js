@@ -5,57 +5,76 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
+    screens: {
+      'xs': '400px',
+      'sm': '640px',
+      'md': '768px',
+      'lg': '1024px',
+      'xl': '1280px',
+      '2xl': '1536px',
+    },
     extend: {
       colors: {
-        // Base colors
-        'cronos-deep': '#0A1128',
-        'card-surface': '#131B36',
+        // Base colors - Professional charcoal/slate palette
+        'surface-base': '#0C0C0E',      // Near-black base
+        'surface-elevated': '#141416',   // Elevated surfaces (cards)
+        'surface-hover': '#1A1A1D',      // Hover states
+        'surface-border': '#262629',     // Subtle borders
 
-        // Neon accents
-        'neon-cyan': '#00F0FF',
-        'neon-blue': '#0057FF',
+        // Legacy aliases for gradual migration
+        'cronos-deep': '#0C0C0E',
+        'card-surface': '#141416',
 
-        // Text
-        'text-primary': '#FFFFFF',
-        'text-secondary': '#A0AEC0',
+        // Accent - Blue used sparingly
+        'accent': '#3B82F6',             // Primary accent (softer blue)
+        'accent-muted': '#2563EB',       // Darker accent
+        'accent-subtle': 'rgba(59, 130, 246, 0.1)', // Very subtle accent bg
 
-        // Semantic status
-        'status-safe': '#00FF94',
-        'status-warning': '#FFD600',
-        'status-danger': '#FF005C',
+        // Legacy alias
+        'neon-cyan': '#3B82F6',
+        'neon-blue': '#2563EB',
+
+        // Text hierarchy
+        'text-primary': '#F4F4F5',       // Primary text (slightly off-white)
+        'text-secondary': '#71717A',     // Secondary text (zinc-500)
+        'text-tertiary': '#52525B',      // Tertiary text (zinc-600)
+
+        // Semantic status - Muted versions
+        'status-safe': '#22C55E',        // Green-500 (less saturated)
+        'status-warning': '#EAB308',     // Yellow-500
+        'status-danger': '#EF4444',      // Red-500
       },
       fontFamily: {
-        sans: ['Inter', 'Roboto', 'Montserrat', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
       },
       backgroundImage: {
-        'neon-gradient': 'linear-gradient(135deg, #00F0FF, #0057FF)',
-        'neon-gradient-hover': 'linear-gradient(135deg, #00F0FF, #3370FF)',
+        // Removed neon gradients - use solid colors or very subtle gradients
+        'accent-gradient': 'linear-gradient(135deg, #3B82F6, #2563EB)',
       },
       boxShadow: {
-        'neon': '0 0 20px rgba(0, 240, 255, 0.3)',
-        'neon-strong': '0 0 30px rgba(0, 240, 255, 0.5)',
-        'neon-safe': '0 0 20px rgba(0, 255, 148, 0.3)',
-        'neon-warning': '0 0 20px rgba(255, 214, 0, 0.3)',
-        'neon-danger': '0 0 20px rgba(255, 0, 92, 0.3)',
+        // Subtle, professional shadows (no glow)
+        'soft': '0 1px 3px rgba(0, 0, 0, 0.3)',
+        'medium': '0 4px 12px rgba(0, 0, 0, 0.4)',
+        'elevated': '0 8px 24px rgba(0, 0, 0, 0.5)',
+        // Focus ring
+        'focus': '0 0 0 2px rgba(59, 130, 246, 0.3)',
       },
       animation: {
-        'pulse-neon': 'pulse-neon 2s ease-in-out infinite',
-        'glow': 'glow 1.5s ease-in-out infinite alternate',
-        'fadeIn': 'fadeIn 0.3s ease-out',
+        'fadeIn': 'fadeIn 0.2s ease-out',
+        'slideUp': 'slideUp 0.3s ease-out',
       },
       keyframes: {
-        'pulse-neon': {
-          '0%, 100%': { boxShadow: '0 0 20px rgba(0, 240, 255, 0.3)' },
-          '50%': { boxShadow: '0 0 40px rgba(0, 240, 255, 0.6)' },
-        },
-        'glow': {
-          '0%': { filter: 'brightness(1) drop-shadow(0 0 10px rgba(0, 240, 255, 0.5))' },
-          '100%': { filter: 'brightness(1.2) drop-shadow(0 0 20px rgba(0, 240, 255, 0.8))' },
-        },
         'fadeIn': {
-          '0%': { opacity: '0', transform: 'translateY(10px)' },
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        'slideUp': {
+          '0%': { opacity: '0', transform: 'translateY(8px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
+      },
+      borderRadius: {
+        'card': '12px',
       },
     },
   },

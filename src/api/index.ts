@@ -1,11 +1,12 @@
 // =========================================
 // CronosAI Ops - Express Server
+// Production-grade x402 payment server
 // =========================================
 
 import express, { Router } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import { config, validateConfig } from '../shared/config.js';
+import { config, printStartupInfo } from '../shared/config.js';
 import { healthRouter } from './routes/health.js';
 import { capabilitiesRouter } from './routes/capabilities.js';
 import { errorHandler, notFoundHandler } from './middleware/error.js';
@@ -13,44 +14,114 @@ import { registerContractScanCapability } from '../core/capabilities/contract-sc
 import { registerWalletApprovalsCapability } from '../core/capabilities/wallet-approvals.js';
 import { registerTxSimulateCapability } from '../core/capabilities/tx-simulate.js';
 import { createX402Middleware } from './middleware/x402.js';
+import { capabilityRateLimiter, infoRateLimiter } from './middleware/rateLimit.js';
 
 const app = express();
 
 // =========================================
-// Middleware
+// Security Middleware
 // =========================================
 
-// Security headers
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
 
-// CORS
+// =========================================
+// CORS Configuration
+// =========================================
+
 app.use(
   cors({
-    origin: config.frontendUrl,
-    methods: ['GET', 'POST'],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, etc.)
+      if (!origin) return callback(null, true);
+
+      // In development, allow any localhost port
+      if (config.isDevelopment && origin.match(/^http:\/\/localhost:\d+$/)) {
+        return callback(null, true);
+      }
+
+      // In production, only allow configured frontend
+      if (origin === config.frontendUrl) {
+        return callback(null, true);
+      }
+
+      callback(new Error('CORS not allowed'));
+    },
+    methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Payment'],
+    exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
+    credentials: true,
   })
 );
 
-// Body parsing
-app.use(express.json());
+// =========================================
+// Body Parsing
+// =========================================
 
-// Request logging
+app.use(express.json({ limit: '10kb' }));
+
+// =========================================
+// Request Logging
+// =========================================
+
 app.use((req, _res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  const timestamp = new Date().toISOString();
+  const method = req.method;
+  const path = req.path;
+
+  // Color-code by method
+  const methodColors: Record<string, string> = {
+    GET: '\x1b[32m',    // green
+    POST: '\x1b[33m',   // yellow
+    OPTIONS: '\x1b[36m', // cyan
+  };
+  const color = methodColors[method] ?? '\x1b[0m';
+  const reset = '\x1b[0m';
+
+  console.log(`[${timestamp}] ${color}${method}${reset} ${path}`);
   next();
 });
 
 // =========================================
-// Routes
+// Network Info Endpoint
 // =========================================
 
-app.use('/health', healthRouter);
-
-// Note: /capability routes are mounted in startServer after x402 init
+app.get('/network', infoRateLimiter, (_req, res) => {
+  res.json({
+    success: true,
+    network: {
+      mode: config.networkMode,
+      networkId: config.networkId,
+      chainId: config.chainId,
+      isTestnet: config.isTestnet,
+      isMainnet: config.isMainnet,
+      paymentToken: {
+        symbol: config.paymentToken.symbol,
+        address: config.paymentToken.address,
+        decimals: config.paymentToken.decimals,
+      },
+      explorerUrl: config.network.explorerUrl,
+    },
+  });
+});
 
 // =========================================
-// Server Startup
+// Health Routes
+// =========================================
+
+app.use('/health', infoRateLimiter, healthRouter);
+
+// =========================================
+// Capability Registration
 // =========================================
 
 function registerCapabilities(): void {
@@ -60,17 +131,13 @@ function registerCapabilities(): void {
   registerTxSimulateCapability();
 }
 
-async function startServer(): Promise<void> {
-  // Validate configuration
-  const { valid, missing } = validateConfig();
+// =========================================
+// Server Startup
+// =========================================
 
-  if (!valid) {
-    console.warn(`[WARN] Missing environment variables: ${missing.join(', ')}`);
-    if (config.nodeEnv === 'production') {
-      console.error('[ERROR] Cannot start in production with missing config');
-      process.exit(1);
-    }
-  }
+async function startServer(): Promise<void> {
+  // Print startup info (network, config, etc.)
+  printStartupInfo();
 
   // Register all capabilities
   registerCapabilities();
@@ -78,8 +145,9 @@ async function startServer(): Promise<void> {
   // Initialize x402 middleware
   const x402Middleware = await createX402Middleware();
 
-  // Mount capability routes with x402 protection
+  // Mount capability routes with rate limiting and x402 protection
   const protectedRouter = Router();
+  protectedRouter.use(capabilityRateLimiter);
   protectedRouter.use(x402Middleware);
   protectedRouter.use(capabilitiesRouter);
   app.use('/capability', protectedRouter);
@@ -88,18 +156,35 @@ async function startServer(): Promise<void> {
   app.use(notFoundHandler);
   app.use(errorHandler);
 
+  // Start listening
   app.listen(config.port, () => {
+    const networkLabel = config.isMainnet
+      ? '\x1b[31mMAINNET\x1b[0m'
+      : '\x1b[32mTESTNET\x1b[0m';
+
     console.log('');
     console.log('=========================================');
     console.log('  CronosAI Ops Server');
     console.log('=========================================');
-    console.log(`  Environment:  ${config.nodeEnv}`);
-    console.log(`  Port:         ${config.port}`);
-    console.log(`  x402 Mode:    ${config.skipX402 ? 'MOCK' : 'PRODUCTION'}`);
-    console.log(`  Health:       http://localhost:${config.port}/health`);
-    console.log(`  Capabilities: http://localhost:${config.port}/capability`);
+    console.log(`  Network:        ${networkLabel}`);
+    console.log(`  Port:           ${config.port}`);
+    console.log(`  x402 Mode:      ${config.skipX402 ? '\x1b[33mMOCK\x1b[0m' : 'LIVE'}`);
+    console.log(`  Health:         http://localhost:${config.port}/health`);
+    console.log(`  Capabilities:   http://localhost:${config.port}/capability`);
+    console.log(`  Network Info:   http://localhost:${config.port}/network`);
     console.log('=========================================');
-    console.log('');
+
+    if (config.isMainnet) {
+      console.log('');
+      console.log('\x1b[31m  WARNING: Running on MAINNET with REAL FUNDS\x1b[0m');
+      console.log('');
+    }
+
+    if (config.skipX402) {
+      console.log('');
+      console.log('\x1b[33m  WARNING: MOCK MODE - Payments are bypassed!\x1b[0m');
+      console.log('');
+    }
   });
 }
 

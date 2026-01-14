@@ -84,7 +84,7 @@ function analyzeContract(
     signals.push({
       type: 'warning',
       code: 'NOT_VERIFIED',
-      message: 'Contrato no verificado en el explorer',
+      message: 'Contract not verified on explorer',
       weight: RISK_WEIGHTS.NOT_VERIFIED,
     });
   }
@@ -94,14 +94,14 @@ function analyzeContract(
     signals.push({
       type: 'warning',
       code: 'NEW_CONTRACT',
-      message: `Contrato creado hace ${ageDays} dia${ageDays !== 1 ? 's' : ''}`,
+      message: `Contract created ${ageDays} day${ageDays !== 1 ? 's' : ''} ago`,
       weight: RISK_WEIGHTS.NEW_CONTRACT_7_DAYS,
     });
   } else if (ageDays < 30) {
     signals.push({
       type: 'info',
       code: 'RECENT_CONTRACT',
-      message: `Contrato creado hace ${ageDays} dias`,
+      message: `Contract created ${ageDays} days ago`,
       weight: RISK_WEIGHTS.NEW_CONTRACT_30_DAYS,
     });
   }
@@ -111,14 +111,14 @@ function analyzeContract(
     signals.push({
       type: 'warning',
       code: 'VERY_LOW_ACTIVITY',
-      message: `Solo ${txCount} transaccione${txCount !== 1 ? 's' : ''} registrada${txCount !== 1 ? 's' : ''}`,
+      message: `Only ${txCount} transaction${txCount !== 1 ? 's' : ''} recorded`,
       weight: RISK_WEIGHTS.VERY_LOW_TX_COUNT,
     });
   } else if (txCount < 50) {
     signals.push({
       type: 'info',
       code: 'LOW_ACTIVITY',
-      message: `${txCount} transacciones registradas`,
+      message: `${txCount} transactions recorded`,
       weight: RISK_WEIGHTS.LOW_TX_COUNT,
     });
   }
@@ -128,7 +128,7 @@ function analyzeContract(
     signals.push({
       type: 'info',
       code: 'IS_PROXY',
-      message: 'Es un contrato proxy (upgradeable)',
+      message: 'This is a proxy contract (upgradeable)',
       weight: RISK_WEIGHTS.IS_PROXY,
     });
   }
@@ -138,7 +138,7 @@ function analyzeContract(
     signals.push({
       type: 'info',
       code: 'VERIFIED',
-      message: `Contrato verificado${contractName ? `: ${contractName}` : ''}`,
+      message: `Contract verified${contractName ? `: ${contractName}` : ''}`,
       weight: 0,
     });
   }
@@ -147,7 +147,7 @@ function analyzeContract(
     signals.push({
       type: 'info',
       code: 'ESTABLISHED',
-      message: `Contrato activo hace ${ageDays} dias`,
+      message: `Contract active for ${ageDays} days`,
       weight: 0,
     });
   }
@@ -156,7 +156,7 @@ function analyzeContract(
     signals.push({
       type: 'info',
       code: 'HIGH_ACTIVITY',
-      message: `${txCount.toLocaleString()} transacciones registradas`,
+      message: `${txCount.toLocaleString()} transactions recorded`,
       weight: 0,
     });
   }
@@ -213,7 +213,7 @@ async function executeContractScan(
       warnings: [
         {
           level: 'info',
-          message: 'Esta direccion no es un contrato, es una wallet normal',
+          message: 'This address is not a contract, it is a regular wallet (EOA)',
         },
       ],
       limitations: CAPABILITIES_META['contract-scan'].limitations,

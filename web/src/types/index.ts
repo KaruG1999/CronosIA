@@ -82,20 +82,22 @@ export interface TxSimulateData {
   estimatedGas: string;
 }
 
-// API Response
+// Capability Result (for UI display, constructed from API response)
 export interface CapabilityResult<T = unknown> {
-  success: boolean;
   data: T;
   warnings: Warning[];
   limitations: string[];
 }
 
+// API Response (matches actual backend format)
 export interface ApiResponse<T = unknown> {
   success: boolean;
   capability: string;
   cost: string;
-  result: CapabilityResult<T>;
-  formattedResponse: string;
+  result: T;                    // Raw data directly
+  response: string;             // Formatted text response
+  warnings: Warning[];          // At root level
+  limitations: string[];        // At root level
   processingTimeMs: number;
 }
 

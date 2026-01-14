@@ -29,7 +29,7 @@ export async function testClaudeConnection(): Promise<boolean> {
   try {
     const claude = getClaudeClient();
     const response = await claude.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-3-haiku-20240307',
       max_tokens: 10,
       messages: [{ role: 'user', content: 'Hi' }],
     });

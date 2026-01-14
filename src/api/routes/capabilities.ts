@@ -39,11 +39,12 @@ router.post(
   '/:slug',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { slug } = req.params;
+      const slugParam = req.params['slug'];
+      const slug = Array.isArray(slugParam) ? slugParam[0] : slugParam;
 
       // Validate slug exists
       if (!slug || !hasCapability(slug)) {
-        throw createError(Errors.CAPABILITY_NOT_FOUND, `Capability '${slug}' no existe`);
+        throw createError(Errors.CAPABILITY_NOT_FOUND, `Capability '${slug}' not found`);
       }
 
       // Execute capability
