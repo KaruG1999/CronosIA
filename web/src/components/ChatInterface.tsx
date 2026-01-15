@@ -632,6 +632,8 @@ export function ChatInterface({ network }: ChatInterfaceProps) {
           paymentState={paymentState}
           error={paymentError}
           txHash={paymentTxHash}
+          isWalletReady={isWalletReady}
+          isWalletLoading={isWalletClientLoading}
           onConfirmPayment={handleConfirmPayment}
           onCancel={handleCancelPayment}
         />

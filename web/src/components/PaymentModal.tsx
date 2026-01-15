@@ -14,6 +14,8 @@ interface PaymentModalProps {
   paymentState: X402PaymentState;
   error?: string | null;
   txHash?: string | null;
+  isWalletReady: boolean;
+  isWalletLoading: boolean;
   onConfirmPayment: () => void;
   onCancel: () => void;
 }
@@ -71,6 +73,8 @@ export function PaymentModal({
   paymentState,
   error,
   txHash,
+  isWalletReady,
+  isWalletLoading,
   onConfirmPayment,
   onCancel,
 }: PaymentModalProps) {
@@ -78,6 +82,8 @@ export function PaymentModal({
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
 
   const isProcessing = PROCESSING_STATES.includes(paymentState);
+  // Disable button if wallet not ready or processing
+  const isButtonDisabled = isProcessing || !isWalletReady;
   const showSpinner = SPINNER_STATES.includes(paymentState);
 
   // Focus trap and escape key
@@ -243,6 +249,27 @@ export function PaymentModal({
           </div>
         </div>
 
+        {/* Wallet status indicator */}
+        {!isWalletReady && !isProcessing && (
+          <div className="px-5 pb-2">
+            <div className="bg-status-warning/10 border border-status-warning/30 rounded-lg p-3 flex items-center gap-2">
+              {isWalletLoading ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-status-warning/30 border-t-status-warning rounded-full animate-spin" />
+                  <span className="text-sm text-status-warning">Initializing wallet...</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-status-warning">&#9888;</span>
+                  <span className="text-sm text-status-warning">
+                    Wallet not ready. Please ensure MetaMask is connected to Cronos Testnet.
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Actions */}
         <div className="p-5 border-t border-surface-border flex gap-3">
           <button
@@ -255,13 +282,24 @@ export function PaymentModal({
           <button
             ref={confirmButtonRef}
             onClick={onConfirmPayment}
-            disabled={isProcessing}
-            className="flex-1 btn-primary flex items-center justify-center gap-2"
+            disabled={isButtonDisabled}
+            className={`flex-1 btn-primary flex items-center justify-center gap-2 ${
+              !isWalletReady && !isProcessing ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
             {showSpinner && (
               <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             )}
-            <span>{BUTTON_TEXT[paymentState]}</span>
+            {isWalletLoading && !showSpinner && (
+              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            )}
+            <span>
+              {!isWalletReady && !isProcessing
+                ? isWalletLoading
+                  ? 'Waiting for wallet...'
+                  : 'Wallet not ready'
+                : BUTTON_TEXT[paymentState]}
+            </span>
           </button>
         </div>
 
