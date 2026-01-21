@@ -1,20 +1,20 @@
-# Arquitectura - CronosAI Ops
+# Architecture - CronosAI
 
-## Principio de Diseño
+## Design Principle
 
-> Simple > Complejo. Funcional > Elegante.
+> Simple > Complex. Functional > Elegant.
 
 ---
 
-## Diagrama General
+## General Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                        USUARIO                               │
+│                        USER                                  │
 │                                                             │
-│  "¿Es seguro este contrato?"                               │
-│  "Mostrame mis approvals"                                  │
-│  "Simulá este swap"                                        │
+│  "Is this contract safe?"                                  │
+│  "Show me my approvals"                                    │
+│  "Simulate this swap"                                      │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
@@ -24,8 +24,8 @@
 │                                                             │
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │  Chat Interface                                      │   │
-│  │  + Capability Selector (con precios)                │   │
-│  │  + Results Display (con warnings)                   │   │
+│  │  + Capability Selector (with prices)                │   │
+│  │  + Results Display (with warnings)                  │   │
 │  └─────────────────────────────────────────────────────┘   │
 └────────────────────────┬────────────────────────────────────┘
                          │ HTTP
@@ -35,12 +35,12 @@
 │                   (Express.js)                              │
 │                                                             │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐                 │
-│  │ /health  │  │  /chat   │  │/capability│                 │
-│  └──────────┘  └────┬─────┘  └─────┬─────┘                 │
+│  │ /health  │  │  /chat   │  │/capability│                │
+│  └──────────┘  └────┬─────┘  └─────┬─────┘                │
 │                     │              │                        │
 │              ┌──────┴──────────────┴──────┐                │
 │              │      x402 MIDDLEWARE       │                │
-│              │   (cobra ANTES de ejecutar) │                │
+│              │   (charges BEFORE exec)    │                │
 │              └──────────────┬─────────────┘                │
 └─────────────────────────────┼───────────────────────────────┘
                               │
@@ -51,10 +51,10 @@
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │                   ORCHESTRATOR                       │   │
 │  │                                                      │   │
-│  │  1. Recibe request                                  │   │
-│  │  2. Determina capability necesaria                  │   │
-│  │  3. Ejecuta capability                              │   │
-│  │  4. Formatea respuesta con Claude                   │   │
+│  │  1. Receive request                                 │   │
+│  │  2. Determine required capability                   │   │
+│  │  3. Execute capability                              │   │
+│  │  4. Format response with Claude                     │   │
 │  └─────────────────────────────────────────────────────┘   │
 │                          │                                  │
 │         ┌────────────────┼────────────────┐                │
@@ -85,13 +85,13 @@
 
 ---
 
-## Estructura de Carpetas
+## Folder Structure
 
 ```
 cronosai-ops/
 ├── src/
 │   ├── api/
-│   │   ├── index.ts              # Entry point Express
+│   │   ├── index.ts              # Express entry point
 │   │   ├── routes/
 │   │   │   ├── health.ts         # GET /health
 │   │   │   ├── chat.ts           # POST /chat
@@ -101,14 +101,14 @@ cronosai-ops/
 │   │       └── error.ts          # Error handler
 │   │
 │   ├── core/
-│   │   ├── orchestrator.ts       # Orquestador principal
+│   │   ├── orchestrator.ts       # Main orchestrator
 │   │   ├── capabilities/
 │   │   │   ├── index.ts          # Registry
 │   │   │   ├── contract-scan.ts  # $0.01
 │   │   │   ├── wallet-approvals.ts # $0.02
 │   │   │   └── tx-simulate.ts    # $0.03
 │   │   └── ai/
-│   │       ├── claude.ts         # Cliente Claude
+│   │       ├── claude.ts         # Claude client
 │   │       └── prompts.ts        # System prompts
 │   │
 │   ├── services/
@@ -118,10 +118,10 @@ cronosai-ops/
 │   │
 │   └── shared/
 │       ├── types.ts              # TypeScript types
-│       ├── config.ts             # Configuración
+│       ├── config.ts             # Configuration
 │       └── errors.ts             # Custom errors
 │
-├── web/                          # Frontend React (separado)
+├── web/                          # Frontend React (separate)
 │   ├── src/
 │   │   ├── App.tsx
 │   │   ├── components/
@@ -140,42 +140,42 @@ cronosai-ops/
 
 ---
 
-## Flujo de Request
+## Request Flow
 
-### Request Normal (con pago x402)
+### Normal Request (with x402 payment)
 
 ```
-1. Usuario envía request
+1. User sends request
    POST /capability/contract-scan
    { "address": "0x..." }
 
-2. x402 Middleware intercepta
-   - Verifica si hay pago
-   - NO hay pago → devuelve 402 con instrucciones
+2. x402 Middleware intercepts
+   - Checks for payment
+   - No payment → returns 402 with instructions
 
-3. Usuario paga via x402
-   - Wallet firma transacción
-   - x402 Facilitator procesa
+3. User pays via x402
+   - Wallet signs transaction
+   - x402 Facilitator processes
 
-4. Usuario re-envía con proof de pago
+4. User resends with payment proof
    POST /capability/contract-scan
    Headers: { "X-Payment": "..." }
 
-5. x402 Middleware verifica pago
-   - Pago válido → continúa
-   - Pago inválido → 402
+5. x402 Middleware verifies payment
+   - Valid payment → continues
+   - Invalid payment → 402
 
-6. Capability se ejecuta
+6. Capability executes
    - contractScan.execute({ address })
-   - Llama a Cronos Explorer
-   - Analiza datos
-   - Genera resultado
+   - Calls Cronos Explorer
+   - Analyzes data
+   - Generates result
 
-7. Claude formatea respuesta
-   - Convierte datos técnicos a lenguaje humano
-   - Agrega warnings apropiados
+7. Claude formats response
+   - Converts technical data to human language
+   - Adds appropriate warnings
 
-8. Response al usuario
+8. Response to user
    {
      "success": true,
      "capability": "contract.scan",
@@ -187,7 +187,7 @@ cronosai-ops/
 
 ---
 
-## Definición de Capability
+## Capability Definition
 
 ```typescript
 // src/core/capabilities/index.ts
@@ -223,7 +223,7 @@ const capabilities: Map<string, Capability> = new Map([
 
 ---
 
-## Configuración x402
+## x402 Configuration
 
 ```typescript
 // src/api/middleware/x402.ts
@@ -261,7 +261,7 @@ export const x402Config = Object.fromEntries(
 
 ---
 
-## Integración Claude
+## Claude Integration
 
 ```typescript
 // src/core/ai/claude.ts
@@ -283,12 +283,12 @@ export async function formatCapabilityResult(
       {
         role: 'user',
         content: `
-          Usuario preguntó: "${userQuery}"
-          Capability ejecutada: ${capability}
-          Resultado: ${JSON.stringify(result)}
+          User asked: "${userQuery}"
+          Capability executed: ${capability}
+          Result: ${JSON.stringify(result)}
           
-          Formateá la respuesta de forma clara y amigable.
-          Incluí los warnings de forma prominente.
+          Format the response clearly and in a user-friendly way.
+          Include warnings prominently.
         `,
       },
     ],
@@ -302,7 +302,7 @@ export async function formatCapabilityResult(
 
 ---
 
-## Manejo de Errores
+## Error Handling
 
 ```typescript
 // src/shared/errors.ts
@@ -318,26 +318,26 @@ export class CapabilityError extends Error {
   }
 }
 
-// Errores predefinidos
+// Predefined errors
 export const Errors = {
   INVALID_ADDRESS: new CapabilityError(
     'Invalid address format',
     'INVALID_ADDRESS',
-    'La dirección ingresada no es válida. Verificá que sea una dirección de Cronos (0x...)',
+    'The entered address is not valid. Verify it is a Cronos address (0x...)',
     true
   ),
   
   EXPLORER_TIMEOUT: new CapabilityError(
     'Explorer API timeout',
     'EXPLORER_TIMEOUT',
-    'El servicio está tardando más de lo normal. Intentá de nuevo en unos segundos.',
+    'The service is taking longer than expected. Try again in a few seconds.',
     true
   ),
   
   CONTRACT_NOT_FOUND: new CapabilityError(
     'Contract not found',
     'CONTRACT_NOT_FOUND',
-    'No encontré este contrato en Cronos. Verificá la dirección.',
+    'I couldn\'t find this contract on Cronos. Verify the address.',
     true
   ),
 };
@@ -345,7 +345,7 @@ export const Errors = {
 
 ---
 
-## Variables de Entorno
+## Environment Variables
 
 ```env
 # .env.example
@@ -362,7 +362,7 @@ CHAIN_ID=25
 X402_FACILITATOR_URL=https://x402-facilitator.cronos.org
 RECIPIENT_ADDRESS=0x...
 
-# Wallet del servicio (para queries, no para recibir pagos)
+# Service wallet (for queries, not for receiving payments)
 PRIVATE_KEY=0x...
 
 # App
@@ -372,7 +372,7 @@ NODE_ENV=development
 
 ---
 
-## Dependencias Implementadas
+## Implemented Dependencies
 
 ### Backend
 ```json
@@ -416,29 +416,29 @@ NODE_ENV=development
 
 ---
 
-## Decisiones de Diseño
+## Design Decisions
 
-### ¿Por qué NO usar el AI Agent SDK completo?
+### Why NOT use the complete AI Agent SDK?
 
-| Razón | Explicación |
-|-------|-------------|
-| Complejidad | El SDK hace muchas cosas, nosotros hacemos UNA |
-| Control | Necesitamos control total sobre x402 pricing |
-| Claridad | Código más simple = menos bugs |
-| Tiempo | 12 días no alcanza para dominar el SDK |
+| Reason | Explanation |
+|--------|-------------|
+| Complexity | The SDK does many things, we do ONE |
+| Control | We need full control over x402 pricing |
+| Clarity | Simpler code = fewer bugs |
+| Time | 12 days is not enough to master the SDK |
 
-### ¿Por qué Claude y no OpenAI?
+### Why Claude and not OpenAI?
 
-| Razón | Explicación |
-|-------|-------------|
-| Consistencia | Diseñamos con Claude, ejecutamos con Claude |
-| Tool use | Mejor soporte nativo |
-| Contexto | 200K tokens si necesitamos |
+| Reason | Explanation |
+|--------|-------------|
+| Consistency | We designed with Claude, we execute with Claude |
+| Tool use | Better native support |
+| Context | 200K tokens if needed |
 
-### ¿Por qué monolito y no microservicios?
+### Why monolith and not microservices?
 
-| Razón | Explicación |
-|-------|-------------|
-| Simplicidad | Un deploy, un proceso |
-| Tiempo | 12 días |
-| MVP | No necesitamos escalar todavía |
+| Reason | Explanation |
+|--------|-------------|
+| Simplicity | One deploy, one process |
+| Time | 12 days |
+| MVP | We don't need to scale yet |
